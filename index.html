@@ -1132,11 +1132,21 @@
                                                 <input type="number" id="data-retention" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="12" aria-label="数据保留期限">
                                             </div>
                                             <div>
-                                                <button type="button" id="clear-test-data-btn" class="w-full px-4 py-2 bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500">
+                                                <button type="button" id="clear-test-data-btn" class="w-full px-4 py-2 bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 mb-2">
                                                     <i class="fa fa-trash mr-2"></i>清除测试数据
                                                 </button>
                                                 <p class="text-xs text-red-500 mt-1">清除所有车辆和采购数据，保留用户账户和系统设置</p>
                                             </div>
+                                            <div class="grid grid-cols-2 gap-2 mt-4">
+                                                <button type="button" id="export-data-btn" class="w-full px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded hover:bg-blue-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                    <i class="fa fa-download mr-2"></i>导出所有数据
+                                                </button>
+                                                <button type="button" id="import-data-btn" class="w-full px-4 py-2 bg-green-100 text-green-700 border border-green-300 rounded hover:bg-green-200 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500">
+                                                    <i class="fa fa-upload mr-2"></i>导入数据备份
+                                                </button>
+                                            </div>
+                                            <input type="file" id="import-data-file" class="hidden" accept=".json">
+                                            <p class="text-xs text-gray-500 mt-2">导出数据为JSON文件，可用于备份或迁移</p>
                                         </div>
                                     </div>
                                     <div>
@@ -2111,8 +2121,10 @@
                     }
                     return value;
                 }));
+                // 添加版本信息，便于未来数据迁移
+                dataToSave.__version = 1;
                 localStorage.setItem('truckInventoryData', JSON.stringify(dataToSave));
-                console.log('数据已保存到本地存储');
+                console.log('数据已保存到本地存储 (版本:', dataToSave.__version, ')');
             } catch (error) {
                 console.error('保存数据到本地存储失败:', error);
             }
@@ -2130,9 +2142,13 @@
                         return value;
                     });
                     
-                    // 恢复数据到mockData对象
+                    // 检查数据版本
+                    const dataVersion = parsedData.__version || 0;
+                    console.log('加载本地存储数据，版本:', dataVersion);
+                    
+                    // 恢复数据到mockData对象（跳过版本元数据）
                     Object.keys(parsedData).forEach(key => {
-                        if (mockData.hasOwnProperty(key)) {
+                        if (key !== '__version' && mockData.hasOwnProperty(key)) {
                             mockData[key] = parsedData[key];
                         }
                     });
@@ -2156,13 +2172,189 @@
                         });
                     }
                     
-                    console.log('从本地存储加载数据成功');
+                    // 如果需要，未来可以在这里添加版本迁移逻辑
+                    // if (dataVersion < 1) { ... }
+                    
+                    // 数据完整性验证
+                    const integrityIssues = validateDataIntegrity();
+                    if (integrityIssues.length > 0) {
+                        console.log('数据完整性验证完成，发现并修复了', integrityIssues.length, '个问题');
+                    }
+                    
+                    console.log('从本地存储加载数据成功，版本:', dataVersion);
                     return true;
                 }
             } catch (error) {
                 console.error('从本地存储加载数据失败:', error);
             }
             return false;
+        }
+
+        // 导出所有数据为JSON文件
+        function exportAllData() {
+            try {
+                // 使用与保存到本地存储相同的序列化逻辑
+                const dataToExport = JSON.parse(JSON.stringify(mockData, (key, value) => {
+                    if (value instanceof Date) {
+                        return { __type: 'Date', value: value.toISOString() };
+                    }
+                    return value;
+                }));
+                // 添加导出元数据
+                dataToExport.__exportMeta = {
+                    version: 1,
+                    exportTime: new Date().toISOString(),
+                    exportSource: '铂洋二手车系统'
+                };
+                
+                const dataStr = JSON.stringify(dataToExport, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `铂洋二手车系统数据备份_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log('数据导出成功');
+                showNotification('数据导出成功，文件已开始下载', 'success');
+            } catch (error) {
+                console.error('数据导出失败:', error);
+                showNotification('数据导出失败: ' + error.message, 'error');
+            }
+        }
+
+        // 合并导入的数据（避免重复）
+        function mergeImportedData(importedData) {
+            // 移除导出元数据
+            delete importedData.__exportMeta;
+            delete importedData.__version;
+            
+            // 合并策略：对于数组，合并唯一项；对于对象，浅合并
+            Object.keys(importedData).forEach(key => {
+                if (key === '__exportMeta' || key === '__version') return;
+                
+                if (Array.isArray(mockData[key]) && Array.isArray(importedData[key])) {
+                    // 数组合并，基于ID去重（假设有id字段）
+                    const existingIds = new Set(mockData[key].map(item => item.id));
+                    importedData[key].forEach(item => {
+                        if (!existingIds.has(item.id)) {
+                            mockData[key].push(item);
+                        }
+                    });
+                } else if (mockData[key] !== undefined && typeof mockData[key] === 'object' && importedData[key] !== undefined && typeof importedData[key] === 'object') {
+                    // 对象浅合并
+                    Object.assign(mockData[key], importedData[key]);
+                } else {
+                    // 其他情况直接替换
+                    mockData[key] = importedData[key];
+                }
+            });
+            
+            // 保存到本地存储
+            saveDataToStorage();
+            // 更新UI
+            syncDataToUI();
+            console.log('导入数据合并完成');
+        }
+
+        // 从文件导入数据
+        function importDataFromFile(file) {
+            if (!file) return;
+            
+            if (!confirm('导入数据将合并到现有数据中，避免重复项。是否继续？')) {
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // 验证数据格式
+                    if (!importedData || typeof importedData !== 'object') {
+                        throw new Error('无效的数据格式');
+                    }
+                    
+                    // 检查是否包含车辆数据字段
+                    if (!importedData.vehicles && !importedData.buyerRobot && !importedData.transactions) {
+                        throw new Error('数据文件不包含有效的系统数据');
+                    }
+                    
+                    // 合并数据
+                    mergeImportedData(importedData);
+                    
+                    showNotification('数据导入成功，已合并到现有系统中', 'success');
+                } catch (error) {
+                    console.error('导入数据解析失败:', error);
+                    showNotification('导入数据失败: ' + error.message, 'error');
+                }
+            };
+            reader.onerror = function() {
+                showNotification('读取文件失败', 'error');
+            };
+            reader.readAsText(file);
+        }
+
+        // 数据完整性验证
+        function validateDataIntegrity() {
+            const issues = [];
+            
+            // 检查必要的数据结构
+            if (!Array.isArray(mockData.vehicles)) {
+                issues.push('车辆数据不是数组，已重置');
+                mockData.vehicles = [];
+            }
+            
+            if (!Array.isArray(mockData.transactions)) {
+                issues.push('交易记录不是数组，已重置');
+                mockData.transactions = [];
+            }
+            
+            if (!mockData.buyerRobot || typeof mockData.buyerRobot !== 'object') {
+                issues.push('采购机器人数据无效，已重置');
+                mockData.buyerRobot = {
+                    filteredVehicles: 0,
+                    evaluatedVehicles: 0,
+                    totalSearched: 0,
+                    todaySearched: 0,
+                    vehicleList: []
+                };
+            }
+            
+            if (!mockData.sellerRobot || typeof mockData.sellerRobot !== 'object') {
+                issues.push('销售机器人数据无效，已重置');
+                mockData.sellerRobot = {
+                    inquiriesCount: 0,
+                    appointmentsCount: 0,
+                    salesCount: 0,
+                    inquiryList: [],
+                    platformRecords: []
+                };
+            }
+            
+            // 验证车辆数据中的必要字段
+            mockData.vehicles.forEach((vehicle, index) => {
+                if (!vehicle.id) {
+                    vehicle.id = 'vehicle_' + Date.now() + '_' + index;
+                    issues.push(`车辆 ${index} 缺少ID，已自动生成`);
+                }
+                if (!vehicle.status) {
+                    vehicle.status = '库存中';
+                    issues.push(`车辆 ${vehicle.id} 缺少状态，已设置为默认值`);
+                }
+            });
+            
+            if (issues.length > 0) {
+                console.warn('数据完整性验证发现以下问题:', issues);
+                // 可选：保存修复后的数据
+                saveDataToStorage();
+            }
+            
+            return issues;
         }
 
         // 清除测试数据，保留用户数据
@@ -2893,6 +3085,35 @@
                 });
             }
             
+            // 为模态框添加点击            }
+            
+            // 数据导出按钮
+            const exportDataBtn = document.getElementById('export-data-btn');
+            if (exportDataBtn) {
+                exportDataBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    exportAllData();
+                });
+            }
+            
+            // 数据导入按钮
+            const importDataBtn = document.getElementById('import-data-btn');
+            const importDataFile = document.getElementById('import-data-file');
+            if (importDataBtn && importDataFile) {
+                importDataBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    importDataFile.click();
+                });
+                
+                importDataFile.addEventListener('change', function(e) {
+                    if (this.files && this.files[0]) {
+                        importDataFromFile(this.files[0]);
+                        // 清除选择，允许再次选择同一文件
+                        this.value = '';
+                    }
+                });
+            }
+
             // 为模态框添加点击外部关闭功能
             const userProfileModal = document.getElementById('user-profile-modal');
             if (userProfileModal) {
