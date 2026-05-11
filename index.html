@@ -269,18 +269,18 @@
                         </button>
                         <h2 class="text-lg font-semibold text-gray-800">仪表盘</h2>
                     </div>
-                    <div class="flex items-center space-x-4">
-                        <div class="flex items-center">
+                    <div class="flex items-center space-x-4 flex-nowrap overflow-x-auto pb-1">
+                        <div class="flex items-center shrink-0">
                             <span class="text-sm text-gray-600 mr-2">系统时间:</span>
                             <span id="system-time" class="text-sm font-medium">2026-03-18 17:30:45</span>
                         </div>
-                        <div class="flex items-center">
+                        <div class="flex items-center shrink-0">
                             <span class="inline-block w-3 h-3 bg-success rounded-full mr-2"></span>
                             <span class="text-sm text-gray-600">系统运行正常</span>
                         </div>
                         
                         <!-- 用户信息 -->
-                        <div class="flex items-center space-x-3" id="user-info-container" style="display: none;">
+                        <div class="flex items-center space-x-3 shrink-0" id="user-info-container" style="display: none;">
                             <div class="relative">
                                 <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
                                     <div class="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
@@ -613,16 +613,11 @@
                                     <table class="min-w-full divide-y divide-gray-200">
                                         <thead>
                                             <tr>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">筛选日期</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车辆标题</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车辆类型/品类</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">上牌时间/年限</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">马力/车型</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">报价/价格</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">联系方式</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车辆描述摘要</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">原视频链接</th>
-                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">标题</th>
+                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">时间</th>
+                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车型</th>
+                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">价格</th>
+                                                <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">操作</th>
                                             </tr>
                                         </thead>
                                         <tbody class="bg-white divide-y divide-gray-200" id="buyer-robot-main-table-body">
@@ -630,7 +625,7 @@
                                     </table>
                                 </div>
                                 <div class="mt-4 flex justify-between items-center">
-                                    <div class="flex items-center space-x-1" id="buyer-robot-pagination">
+                                    <div class="flex items-center space-x-1 flex-nowrap overflow-x-auto pb-1" id="buyer-robot-pagination">
                                     </div>
                                 </div>
                             </div>
@@ -690,20 +685,20 @@
                     <div class="mb-6">
                         <div class="bg-white rounded-lg shadow p-4">
                             <h3 class="text-lg font-semibold text-gray-800 mb-2">所有销售的车辆数据明细</h3>
-                            <div class="flex space-x-2 mb-4">
-                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="onsale">
+                            <div class="flex space-x-2 mb-4 flex-nowrap overflow-x-auto pb-1">
+                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-filter="onsale">
                                     待销售
                                 </button>
-                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="sold">
+                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-filter="sold">
                                     已售出
                                 </button>
-                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="today-sold">
+                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-filter="today-sold">
                                     今日售出
                                 </button>
-                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="douyin-unpublished">
+                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-filter="douyin-unpublished">
                                     抖音未发布
                                 </button>
-                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300" data-filter="kuaishou-unpublished">
+                                <button class="px-3 py-1 text-sm rounded seller-filter-btn bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-filter="kuaishou-unpublished">
                                     快手未发布
                                 </button>
                             </div>
@@ -711,13 +706,15 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead>
                                         <tr class="bg-gray-50">
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车辆ID</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品牌型号</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">年份/里程</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">收购价格</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">销售价格</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车辆ID</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">品牌型号</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">年份/里程</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车况</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">存放地点</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">收购价格</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">销售价格</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">状态</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="seller-vehicle-table-body" class="bg-white divide-y divide-gray-200">
@@ -735,7 +732,7 @@
                                 <div id="seller-vehicle-pagination-info" class="text-sm text-gray-700">
                                     显示 1-5 条，共 0 条
                                 </div>
-                                <div id="seller-vehicle-pagination-buttons" class="flex space-x-2">
+                                <div id="seller-vehicle-pagination-buttons" class="flex space-x-2 flex-nowrap overflow-x-auto pb-1">
                                     <!-- 分页按钮将通过JavaScript动态填充 -->
                                 </div>
                             </div>
@@ -856,22 +853,22 @@
                         
                         <div class="bg-white rounded-lg shadow p-4">
                             <div class="flex justify-between items-center mb-4">
-                                <div class="flex items-center space-x-4">
-                                    <div class="relative">
-                                        <input type="text" id="inventory-search" placeholder="搜索车辆..." class="pl-10 pr-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary">
+                                <div class="flex items-center space-x-4 flex-nowrap overflow-x-auto pb-1">
+                                    <div class="relative shrink-0">
+                                        <input type="text" id="inventory-search" placeholder="搜索车辆..." class="pl-10 pr-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary w-full min-w-[200px]">
                                         <i class="fa fa-search absolute left-3 top-3 text-gray-400"></i>
                                     </div>
-                                    <select id="status-filter" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <select id="status-filter" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary shrink-0 min-w-[120px]">
                                         <option value="">所有状态</option>
                                         <option value="库存中">库存中</option>
                                         <option value="已售出">已售出</option>
                                     </select>
-                                    <select id="source-filter" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <select id="source-filter" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary shrink-0 min-w-[120px]">
                                         <option value="">所有来源</option>
                                         <option value="original">原始库存</option>
                                         <option value="purchasing">采购新增</option>
                                     </select>
-                                    <select id="items-per-page" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <select id="items-per-page" class="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary shrink-0 min-w-[120px]">
                                         <option value="5">每页5条</option>
                                         <option value="10">每页10条</option>
                                         <option value="20">每页20条</option>
@@ -894,15 +891,15 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead>
                                         <tr>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车辆信息</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">年份/里程</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">车况</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">采购价</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">售价</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">存放地点</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">来源</th>
-                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车辆信息</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">年份/里程</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车况</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">采购价</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">售价</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">状态</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">存放地点</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">来源</th>
+                                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200" id="inventory-table-body"></tbody>
@@ -910,12 +907,12 @@
                             </div>
                             <div class="mt-4 flex justify-between items-center">
                                 <div class="text-sm text-gray-500" id="pagination-info">显示 1-3 条，共 24 条</div>
-                                <div class="flex space-x-1" id="pagination-buttons">
-                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 pagination-btn" data-action="prev" id="prev-btn">上一页</button>
-                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm bg-primary text-white pagination-btn" data-action="page" data-page="1">1</button>
-                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn" data-action="page" data-page="2">2</button>
-                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn" data-action="page" data-page="3">3</button>
-                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn" data-action="next" id="next-btn">下一页</button>
+                                <div class="flex space-x-1 flex-nowrap overflow-x-auto pb-1" id="pagination-buttons">
+                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 pagination-btn whitespace-nowrap shrink-0" data-action="prev" id="prev-btn">上一页</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm bg-primary text-white pagination-btn whitespace-nowrap shrink-0" data-action="page" data-page="1">1</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn whitespace-nowrap shrink-0" data-action="page" data-page="2">2</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn whitespace-nowrap shrink-0" data-action="page" data-page="3">3</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded text-sm pagination-btn whitespace-nowrap shrink-0" data-action="next" id="next-btn">下一页</button>
                                 </div>
                             </div>
                         </div>
@@ -1767,7 +1764,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div id="detail-images-section">
                                     <div class="flex justify-between items-center mb-3">
                                         <h4 class="text-lg font-semibold text-gray-700">车辆图片</h4>
@@ -3996,44 +3993,50 @@
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
                 row.innerHTML = `
-                    <td class="px-4 py-3 text-sm text-gray-900">${vehicle.id}</td>
-                    <td class="px-4 py-3 text-sm text-gray-900">
-                        <div class="font-medium">${vehicle.brand}</div>
-                        <div class="text-gray-500 text-xs">${vehicle.model}</div>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${vehicle.id}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                        <div class="font-medium">${vehicle.brand} <span class="text-gray-500 text-xs">${vehicle.model}</span></div>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-900">
-                        <div>${vehicle.year}年</div>
-                        <div class="text-gray-500 text-xs">${vehicle.mileage ? vehicle.mileage.toLocaleString() + '公里' : '--'}</div>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                        <div>${vehicle.year}年 · <span class="text-gray-500">${vehicle.mileage ? vehicle.mileage.toLocaleString() + '公里' : '--'}</span></div>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-900">
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                        ${vehicle.condition ? `<div class="text-sm">${vehicle.condition}</div>` : '<div class="text-gray-400 text-sm">--</div>'}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                        ${vehicle.location ? `<div class="text-sm">${vehicle.location}</div>` : '<div class="text-gray-400 text-sm">--</div>'}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                         ¥${vehicle.acquisitionPrice ? vehicle.acquisitionPrice.toLocaleString() : '0'}
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-900">
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                         <span class="font-medium text-secondary">¥${vehicle.sellingPrice ? vehicle.sellingPrice.toLocaleString() : '0'}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm">
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
                         <span class="px-2 py-1 ${statusClass} text-xs rounded">${statusLabel}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm space-x-2">
-                        <button class="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-blue-800 transition-colors view-vehicle-btn" data-id="${vehicle.id}">
-                            查看详情
-                        </button>
-                        <button class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-800 transition-colors publish-douyin-btn" data-id="${vehicle.id}">
-                            发布抖音
-                        </button>
-                        <button class="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-800 transition-colors publish-kuaishou-btn" data-id="${vehicle.id}">
-                            发布快手
-                        </button>
-                        ${vehicle.status === '库存中' ? `
-                        <button class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-800 transition-colors mark-sold-btn" data-id="${vehicle.id}">
-                            已售出
-                        </button>
-                        ` : ''}
-                        ${vehicle.status === '已售出' ? `
-                        <button class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-800 transition-colors delete-sold-vehicle-btn" data-id="${vehicle.id}">
-                            删除
-                        </button>
-                        ` : ''}
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
+                        <div class="flex flex-nowrap space-x-2">
+                            <button class="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-blue-800 transition-colors view-vehicle-btn" data-id="${vehicle.id}">
+                                查看详情
+                            </button>
+                            <button class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-800 transition-colors publish-douyin-btn" data-id="${vehicle.id}">
+                                发布抖音
+                            </button>
+                            <button class="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-800 transition-colors publish-kuaishou-btn" data-id="${vehicle.id}">
+                                发布快手
+                            </button>
+                            ${vehicle.status === '库存中' ? `
+                            <button class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-800 transition-colors mark-sold-btn" data-id="${vehicle.id}">
+                                已售出
+                            </button>
+                            ` : ''}
+                            ${vehicle.status === '已售出' ? `
+                            <button class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-800 transition-colors delete-sold-vehicle-btn" data-id="${vehicle.id}">
+                                删除
+                            </button>
+                            ` : ''}
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -4612,11 +4615,13 @@
                 
                 // 采购基本信息
                 purchaseInfoHtml = `
-                    <div class="mt-1 text-xs text-gray-500">
-                        <div>采购价: ¥${purchaseData.purchasePrice.toLocaleString()}</div>
-                        <div>采购日期: ${new Date(purchaseData.purchaseDate).toLocaleDateString()}</div>
-                        <div class="truncate max-w-xs" title="${vehicleInfo.contact || '无'}">联系方式: ${vehicleInfo.contact || '无'}</div>
-                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">
+                        <span>采购价: ¥${purchaseData.purchasePrice.toLocaleString()}</span>
+                        <span class="mx-1">·</span>
+                        <span>采购日期: ${new Date(purchaseData.purchaseDate).toLocaleDateString()}</span>
+                        <span class="mx-1">·</span>
+                        <span class="truncate max-w-xs" title="${vehicleInfo.contact || '无'}">联系方式: ${vehicleInfo.contact || '无'}</span>
+                    </span>
                 `;
                 
                 // 构建附加信息
@@ -4627,9 +4632,9 @@
                 
                 if (additionalDetails.length > 0) {
                     additionalInfoHtml = `
-                        <div class="mt-1 text-xs text-gray-500">
-                            <div>${additionalDetails.join(' · ')}</div>
-                        </div>
+                        <span class="text-xs text-gray-500">
+                            <span>${additionalDetails.join(' · ')}</span>
+                        </span>
                     `;
                 }
             }
@@ -4642,9 +4647,11 @@
                 displayTitle = brandModel || '无';
             }
             let vehicleInfoHtml = `
-                <div class="text-sm font-medium text-gray-900">${displayTitle}</div>
-                ${purchaseInfoHtml}
-                ${additionalInfoHtml}
+                <div class="flex items-center space-x-2 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">${displayTitle}</div>
+                    ${purchaseInfoHtml ? `<span class="text-xs text-gray-400 cursor-help" title="${purchaseInfoHtml.replace(/<[^>]*>/g, '')}">[采购信息]</span>` : ''}
+                    ${additionalInfoHtml ? `<span class="text-xs text-gray-400 cursor-help" title="${additionalInfoHtml.replace(/<[^>]*>/g, '')}">[详情]</span>` : ''}
+                </div>
             `;
             
             // 年份/里程信息，添加其他车辆属性
@@ -4652,8 +4659,7 @@
             const monthDisplay = vehicle.registerMonth ? vehicle.registerMonth : '';
             const yearMonthDisplay = yearDisplay === '无' && monthDisplay ? monthDisplay : yearDisplay + monthDisplay;
             let yearMileageHtml = `
-                <div class="text-sm text-gray-900">${yearMonthDisplay}</div>
-                <div class="text-sm text-gray-500">${(vehicle.mileage / 10000).toFixed(1)}万公里</div>
+                <div class="text-sm text-gray-900">${yearMonthDisplay} · <span class="text-gray-500">${(vehicle.mileage / 10000).toFixed(1)}万公里</span></div>
             `;
             
             // 车况信息，添加其他技术规格
@@ -4664,7 +4670,7 @@
             // 如果车辆有马力信息，添加到车况单元格
             if (vehicle.horsepower) {
                 conditionInfoHtml += `
-                    <div class="mt-1 text-xs text-gray-600">${vehicle.horsepower}匹</div>
+                    <span class="ml-2 text-xs text-gray-600">${vehicle.horsepower}匹</span>
                 `;
             }
             
@@ -4675,13 +4681,13 @@
             
             if (vehicle.emissionStandard) {
                 statusHtml += `
-                    <div class="mt-1 text-xs text-gray-600">${vehicle.emissionStandard}</div>
+                    <span class="ml-2 text-xs text-gray-600">${vehicle.emissionStandard}</span>
                 `;
             }
             
             return `
                 <tr class="${rowClass}">
-                    <td class="px-6 py-4">
+                    <td class="px-6 py-4 whitespace-nowrap">
                         ${vehicleInfoHtml}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -7154,6 +7160,7 @@ function openVehicleDetailModal(vehicleId) {
     
     document.getElementById('detail-location').textContent = displayInfo.location || '';
     document.getElementById('detail-source').textContent = displayInfo.source === 'purchasing' ? '采购新增' : '库存新增';
+
     
     // 填充车辆图片
     const imagesSection = document.getElementById('detail-images-section');
@@ -8316,31 +8323,37 @@ function renderBuyerRobotTable() {
         }
         
         tr.innerHTML = `
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${filterDate}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${vehicleTitle}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${vehicleType}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${registrationDate}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${horsepower}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${price}</td>
-            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${contact}</td>
-            <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                <div class="flex items-center justify-between">
-                    <span class="truncate flex-1" title="${description}">${description}</span>
-                    <button class="copy-desc-btn ml-2 text-gray-400 hover:text-primary transition-colors" data-description="${description.replace(/"/g, '&quot;')}" title="复制描述">
-                        <i class="fa fa-copy text-xs"></i>
-                    </button>
+            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                <div class="font-medium truncate max-w-xs" title="${vehicleTitle}">${vehicleTitle}</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                ${registrationDate || filterDate ? `<div class="text-sm">${registrationDate || filterDate}</div>` : '<div class="text-gray-400 text-sm">--</div>'}
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                ${vehicleType ? `<div class="text-sm">${vehicleType}</div>` : '<div class="text-gray-400 text-sm">--</div>'}
+                ${horsepower ? `<div class="text-xs text-gray-500">${horsepower}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                <div class="flex items-center space-x-2">
+                    <span class="font-medium text-lg" title="${price}">${price}</span>
+                    <div class="flex items-center space-x-1">
+                        ${contact ? `<span class="text-xs text-gray-500 truncate max-w-xs cursor-help" title="联系方式: ${contact}">[联系]</span>` : ''}
+                        ${description ? `<button class="text-xs text-gray-400 hover:text-primary copy-desc-btn" data-description="${description.replace(/"/g, '&quot;')}" title="复制描述: ${description}"><i class="fa fa-copy"></i></button>` : ''}
+                    </div>
                 </div>
             </td>
-            <td class="px-4 py-3 text-sm whitespace-nowrap">${videoLinkHtml}</td>
             <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                <button class="text-primary hover:text-blue-800 mr-2 view-details-btn" data-id="${vehicle.id}">查看详情</button>
-                ${vehicle.confirmedPurchase ? 
-                    '<button class="text-gray-400 cursor-not-allowed confirm-purchase-btn" data-id="' + vehicle.id + '" disabled>已确认采购</button>' : 
-                    '<button class="text-success hover:text-green-800 confirm-purchase-btn" data-id="' + vehicle.id + '">确认采购</button>'}
-                ${vehicle.addedToInventory ? 
-                    '<button class="text-gray-400 cursor-not-allowed add-to-inventory-btn" data-id="' + vehicle.id + '" disabled>已加入库存</button>' : 
-                    '<button class="text-secondary hover:text-orange-800 add-to-inventory-btn" data-id="' + vehicle.id + '">加入库存</button>'}
-                <button class="text-red-600 hover:text-red-800 delete-purchase-btn" data-id="${vehicle.id}">删除</button>
+                <div class="flex items-center space-x-2">
+                    <button class="text-primary hover:text-blue-800 mr-2 view-details-btn" data-id="${vehicle.id}">查看详情</button>
+                    ${vehicle.confirmedPurchase ? 
+                        '<button class="text-gray-400 cursor-not-allowed confirm-purchase-btn mr-2" data-id="' + vehicle.id + '" disabled>已确认采购</button>' : 
+                        '<button class="text-success hover:text-green-800 confirm-purchase-btn mr-2" data-id="' + vehicle.id + '">确认采购</button>'}
+                    ${vehicle.addedToInventory ? 
+                        '<button class="text-gray-400 cursor-not-allowed add-to-inventory-btn mr-2" data-id="' + vehicle.id + '" disabled>已加入库存</button>' : 
+                        '<button class="text-secondary hover:text-orange-800 add-to-inventory-btn mr-2" data-id="' + vehicle.id + '">加入库存</button>'}
+                    <button class="text-red-600 hover:text-red-800 mr-2 delete-purchase-btn" data-id="${vehicle.id}">删除</button>
+                    ${videoUrl ? `<button class="text-blue-600 hover:text-blue-800" onclick="window.open('${videoUrl}', '_blank')" title="查看视频"><i class="fa fa-video"></i></button>` : ''}
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
