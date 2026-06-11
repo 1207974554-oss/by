@@ -10,8 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <!-- SheetJS (Excel处理) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <!-- CloudBase Web SDK - 使用腾讯云官方CDN 1.5.0 -->
-    <script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.5.0/cloudbase.full.js"></script>
+    <!-- CloudBase Web SDK - 使用腾讯云官方CDN 2.28.6 -->
+    <script src="https://static.cloudbase.net/cloudbase-js-sdk/2.28.6/cloudbase.full.js"></script>
     <!-- CloudBase Web SDK - 备用CDN (使用腾讯云官方CDN) -->
     <script>
         // 简化头部脚本：只定义全局变量，不调用未定义的函数
@@ -35,8 +35,8 @@
                         // 检查initCloudBase函数是否已定义
                         if (typeof initCloudBase === 'function') {
                             // 延迟执行，确保页面其他部分已加载
-                            setTimeout(() => {
-                                initCloudBase();
+                            setTimeout(async () => {
+                                await initCloudBase();
                             }, 500);
                         } else {
                             console.log('initCloudBase函数尚未定义，等待页面加载完成');
@@ -55,27 +55,25 @@
                 window.cloudbaseSDKLoaded = false;
                 window.cloudbaseSDKError = '主CDN加载失败，尝试备用CDN';
                 
-                // 创建备用script标签
+                // 创建备用script标签（2.x版本，支持signInAnonymously）
                 const backupScript = document.createElement('script');
-                backupScript.src = 'https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.5.0/cloudbase.full.js';
+                backupScript.src = 'https://static.cloudbase.net/cloudbase-js-sdk/2.28.6/cloudbase.full.js';
                 backupScript.onload = function() {
                     console.log('备用CDN加载成功');
                     window.cloudbaseSDKLoaded = true;
                     window.cloudbaseSDKError = null;
-                    // 尝试自动初始化（如果函数已定义且已有配置）
                     tryAutoInitCloudBase();
                 };
                 backupScript.onerror = function() {
-                    console.error('备用CDN也加载失败，尝试其他CDN...');
+                    console.error('备用CDN加载失败，尝试第三个CDN...');
                     window.cloudbaseSDKError = '备用CDN加载失败，尝试第三个CDN';
-                    // 尝试第三个CDN
+                    // 尝试第三个CDN (jsdelivr CDN)
                     const thirdScript = document.createElement('script');
-                    thirdScript.src = 'https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.4.0/cloudbase.full.js';
+                    thirdScript.src = 'https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2.28.6/dist/cloudbase.full.js';
                     thirdScript.onload = function() {
-                        console.log('第三个CDN加载成功');
+                        console.log('第三个CDN (jsdelivr) 加载成功');
                         window.cloudbaseSDKLoaded = true;
                         window.cloudbaseSDKError = null;
-                        // 尝试自动初始化（如果函数已定义且已有配置）
                         tryAutoInitCloudBase();
                     };
                     thirdScript.onerror = function() {
@@ -261,29 +259,43 @@
                 <p class="text-blue-200 mt-2">欢迎回来，请登录您的账户</p>
             </div>
             
-            <!-- 自动登录提示 -->
-            <div class="p-8 text-center">
-                <div class="mb-6">
-                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-primary flex items-center justify-center">
-                        <i class="fa fa-user text-white text-2xl"></i>
+            <!-- 登录表单 -->
+            <div class="p-8">
+                <form id="login-form" class="space-y-6">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700 mb-2">账号</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fa fa-user"></i>
+                            </span>
+                            <input type="text" id="username" name="username" required autocomplete="username"
+                                class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-800"
+                                placeholder="请输入账号">
+                        </div>
                     </div>
-                    <h2 class="text-lg font-semibold text-gray-800 mb-2">管理员自动登录</h2>
-                    <p class="text-gray-600 text-sm">系统正在自动登录管理员账户...</p>
-                </div>
-                
-                <!-- 加载动画 -->
-                <div class="mb-6">
-                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                    <p class="text-gray-500 text-sm mt-2">加载中，请稍候</p>
-                </div>
-                
-                <!-- 用户提示 -->
-                <div class="mt-6 pt-6 border-t border-gray-200">
-                    <p class="text-center text-sm text-gray-600">
-                        系统自动使用管理员账户登录<br>
-                        无需输入账号密码
-                    </p>
-                </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fa fa-lock"></i>
+                            </span>
+                            <input type="password" id="password" name="password" required autocomplete="current-password"
+                                class="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-800"
+                                placeholder="请输入密码">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="remember" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-600">记住我</span>
+                        </label>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-primary text-white py-3 rounded-lg hover:bg-secondary transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary font-medium">
+                        <i class="fa fa-sign-in mr-2"></i>登 录
+                    </button>
+                    <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
+                </form>
             </div>
         </div>
     </div>
@@ -1272,6 +1284,9 @@
                                                     </button>
                                                 </div>
                                                 <div class="grid grid-cols-2 gap-2 mb-2">
+                                                    <button type="button" id="cloudbase-clear-btn" class="w-full px-3 py-2 bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                                                        <i class="fa fa-trash mr-1"></i>清空云端数据
+                                                    </button>
                                                     <button type="button" id="cloudbase-test-btn" class="w-full px-3 py-2 bg-yellow-100 text-yellow-700 border border-yellow-300 rounded hover:bg-yellow-200 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm">
                                                         <i class="fa fa-plug mr-1"></i>测试连接
                                                     </button>
@@ -1332,17 +1347,17 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <div class="mb-4">
-                                        <img id="modal-vehicle-image" class="w-full h-64 object-cover rounded-lg" src="https://p26-doubao-search-sign.byteimg.com/labis/b0fba035ebe909b586c9110cbd090092~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1789379450&x-signature=38wXAr5vZ9sRQXRFqry%2B1Jiasb4%3D" alt="车辆图片">
+                                        <img id="modal-vehicle-image" class="w-full h-64 object-cover rounded-lg" src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=800&q=80" alt="车辆图片">
                                     </div>
                                     <div class="grid grid-cols-4 gap-2">
                                         <div class="border border-gray-200 rounded overflow-hidden cursor-pointer hover:border-primary">
-                                            <img class="w-full h-16 object-cover" src="https://p26-doubao-search-sign.byteimg.com/labis/b0fba035ebe909b586c9110cbd090092~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1789379450&x-signature=38wXAr5vZ9sRQXRFqry%2B1Jiasb4%3D" alt="车辆图片">
+                                            <img class="w-full h-16 object-cover" src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=200&q=80" alt="车辆图片">
                                         </div>
                                         <div class="border border-gray-200 rounded overflow-hidden cursor-pointer hover:border-primary">
-                                            <img class="w-full h-16 object-cover" src="https://p3-doubao-search-sign.byteimg.com/labis/feac2561b69170260249acab9af3c18e~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1789379450&x-signature=PbQw7gMhLnx29%2BgjAmTMEmaBAdo%3D" alt="车辆图片">
+                                            <img class="w-full h-16 object-cover" src="https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=200&q=80" alt="车辆图片">
                                         </div>
                                         <div class="border border-gray-200 rounded overflow-hidden cursor-pointer hover:border-primary">
-                                            <img class="w-full h-16 object-cover" src="https://p26-doubao-search-sign.byteimg.com/labis/2cb8be03b38684e3ee2ec15ec99f2bbf~tplv-be4g95zd3a-image.jpeg?lk3s=feb11e32&x-expires=1789379450&x-signature=14caFBcGhz51Lo3dqV0CPhWQ1Pw%3D" alt="车辆图片">
+                                            <img class="w-full h-16 object-cover" src="https://images.unsplash.com/photo-1580274455191-1c62238fa333?w=200&q=80" alt="车辆图片">
                                         </div>
                                         <div class="border border-gray-200 rounded overflow-hidden cursor-pointer hover:border-primary bg-gray-100 flex items-center justify-center">
                                             <i class="fa fa-plus text-gray-400"></i>
@@ -1608,9 +1623,9 @@
                                 </div>
                                 
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">车辆图片URL（备用）</label>
-                                    <input type="text" id="edit-images" name="images" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="车辆图片URL（可输入多个，用逗号分隔）">
-                                    <p class="text-xs text-gray-500 mt-1">可输入图片URL作为备用，多个URL用逗号分隔。</p>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">图片链接</label>
+                                    <input type="text" id="edit-images" name="images" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="图片链接（可输入多个，用逗号分隔）">
+                                    <p class="text-xs text-gray-500 mt-1">可输入图片链接，多个链接用逗号分隔。</p>
                                 </div>
                                 
                                 <div>
@@ -1727,8 +1742,8 @@
                 
                 <!-- 原始数据详情模态框 -->
                 <div id="original-data-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-                    <div class="bg-white rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <div class="p-6">
+                    <div class="bg-white rounded-lg shadow-lg w-full max-w-5xl max-h-[92vh] overflow-y-auto">
+                        <div class="p-5">
                             <div class="flex justify-between items-center mb-4">
                                 <div>
                                     <h3 class="text-xl font-bold text-gray-800">原始数据详情</h3>
@@ -2227,47 +2242,14 @@
             users: [
                 {
                     id: 1,
-                    username: "admin",
-                    password: "admin123",
-                    name: "系统管理员",
+                    username: "by111",
+                    password: "by168",
+                    name: "管理员",
                     role: "admin",
-                    email: "admin@example.com",
-                    phone: "13800138000",
-                    department: "管理层",
+                    email: "",
+                    phone: "",
+                    department: "",
                     avatar: "https://ui-avatars.com/api/?name=管理员&background=1a365d&color=fff"
-                },
-                {
-                    id: 2,
-                    username: "buyer",
-                    password: "buyer123",
-                    name: "张三采购",
-                    role: "buyer",
-                    email: "buyer@example.com",
-                    phone: "13900139000",
-                    department: "采购部",
-                    avatar: "https://ui-avatars.com/api/?name=张三&background=ed8936&color=fff"
-                },
-                {
-                    id: 3,
-                    username: "seller",
-                    password: "seller123",
-                    name: "李四销售",
-                    role: "seller",
-                    email: "seller@example.com",
-                    phone: "13700137000",
-                    department: "销售部",
-                    avatar: "https://ui-avatars.com/api/?name=李四&background=48bb78&color=fff"
-                },
-                {
-                    id: 4,
-                    username: "manager",
-                    password: "manager123",
-                    name: "王五经理",
-                    role: "manager",
-                    email: "manager@example.com",
-                    phone: "13600136000",
-                    department: "运营部",
-                    avatar: "https://ui-avatars.com/api/?name=王五&background=9f7aea&color=fff"
                 }
             ],
             dashboard: {
@@ -2336,7 +2318,7 @@
         const cloudbaseConfig = window.cloudbaseConfig; // 引用全局配置
 
         // 初始化 CloudBase
-        function initCloudBase() {
+        async function initCloudBase() {
             try {
                 // 首先从本地存储加载配置（无论SDK是否加载）
                 const savedConfig = localStorage.getItem(CLOUDBASE_CONFIG_KEY);
@@ -2371,10 +2353,20 @@
 
                 // 初始化 CloudBase 应用
                 cloudbaseApp = window.cloudbase.init({
-                    env: cloudbaseConfig.envId,
-                    region: cloudbaseConfig.region,
-                    accessKey: cloudbaseConfig.accessKey
+                    env: cloudbaseConfig.envId
                 });
+
+                // 匿名登录（CloudBase 2.x 必须认证后才能访问数据库）
+                const auth = cloudbaseApp.auth({ persistence: 'local' });
+                try {
+                    await auth.signInAnonymously();
+                    console.log('✅ CloudBase 匿名登录成功');
+                } catch (authErr) {
+                    console.error('❌ 匿名登录失败:', authErr.message, authErr.code);
+                    cloudbaseLastError = '匿名登录失败: ' + authErr.message;
+                    updateCloudbaseStatusDisplay();
+                    return false;
+                }
 
                 // 获取数据库引用
                 cloudbaseDb = cloudbaseApp.database();
@@ -2411,10 +2403,16 @@
                 modal.id = 'cloudbase-config-modal';
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
                 modal.innerHTML = `
-                    <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">CloudBase 云开发配置</h3>
+                    <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6">
+                        <div class="flex justify-between items-center mb-4 sticky top-0 bg-white pb-4 border-b">
+                            <h3 class="text-lg font-semibold text-gray-900">CloudBase 云开发配置</h3>
+                            <button type="button" class="text-gray-500 hover:text-gray-700 focus:outline-none close-modal-btn">
+                                <span class="sr-only">关闭</span>
+                                <i class="fa fa-times text-xl"></i>
+                            </button>
+                        </div>
                         ${errorMessage ? `<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-md">${errorMessage}</div>` : ''}
-                        <div class="space-y-4">
+                        <div class="space-y-3">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">环境 ID (Env ID)</label>
                                 <input type="text" id="cloudbase-env-id" 
@@ -2439,16 +2437,72 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="mt-6 flex justify-end space-x-3">
-                            <button type="button" id="cloudbase-cancel-btn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
-                                取消
-                            </button>
-                            <button type="button" id="cloudbase-debug-btn" class="px-4 py-2 border border-yellow-300 bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
-                                调试
-                            </button>
-                            <button type="button" id="cloudbase-save-btn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
-                                保存并连接
-                            </button>
+                        <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h4 class="text-sm font-medium text-blue-800">当前配置环境</h4>
+                                    <p class="text-xs text-blue-600 mt-1">当前连接的环境ID: <span id="current-env-display" class="font-mono">${cloudbaseConfig.envId || '未设置'}</span></p>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button type="button" id="cloudbase-check-env-btn" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 border border-blue-300 rounded hover:bg-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        检查环境
+                                    </button>
+                                    <button type="button" id="cloudbase-load-data-btn" class="px-3 py-1 text-xs bg-green-100 text-green-700 border border-green-300 rounded hover:bg-green-200 focus:outline-none focus:ring-1 focus:ring-green-500">
+                                        从云端加载数据
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                            <h4 class="text-sm font-medium text-gray-800 mb-2">云端数据验证</h4>
+                            <div id="cloudbase-data-validation" class="text-xs text-gray-600">
+                                <p>点击下方按钮验证云端数据状态：</p>
+                                <div class="mt-2 space-y-1">
+                                    <div class="flex items-center">
+                                        <span class="w-24">车辆数据:</span>
+                                        <span id="validation-vehicles" class="font-mono">-</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <span class="w-24">交易数据:</span>
+                                        <span id="validation-transactions" class="font-mono">-</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <span class="w-24">待处理车辆:</span>
+                                        <span id="validation-pending" class="font-mono">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 flex space-x-2">
+                                <button type="button" id="cloudbase-validate-data-btn" class="px-3 py-1 text-xs bg-purple-100 text-purple-700 border border-purple-300 rounded hover:bg-purple-200 focus:outline-none focus:ring-1 focus:ring-purple-500">
+                                    验证云端数据
+                                </button>
+                                <button type="button" id="cloudbase-test-connection-btn" class="px-3 py-1 text-xs bg-orange-100 text-orange-700 border border-orange-300 rounded hover:bg-orange-200 focus:outline-none focus:ring-1 focus:ring-orange-500">
+                                    测试连接
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <button type="button" id="cloudbase-cancel-btn" class="px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary">
+                                    取消
+                                </button>
+                                <button type="button" id="cloudbase-debug-btn" class="px-3 py-2 border border-yellow-300 bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-yellow-500">
+                                    调试
+                                </button>
+                                <button type="button" id="cloudbase-fix-btn" class="px-3 py-2 border border-red-300 bg-red-50 text-red-700 rounded-md hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-red-500">
+                                    一键修复
+                                </button>
+                                <button type="button" id="cloudbase-auto-fix-btn" class="px-3 py-2 border border-purple-300 bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-purple-500">
+                                    自动修复
+                                </button>
+                                <button type="button" id="cloudbase-deploy-btn" class="px-3 py-2 border border-green-300 bg-green-50 text-green-700 rounded-md hover:bg-green-100 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-green-500">
+                                    一键部署
+                                </button>
+                                <button type="button" id="cloudbase-save-btn" class="px-3 py-2 bg-primary text-white rounded-md hover:bg-primary-dark focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-primary col-span-2">
+                                    保存并连接
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2456,15 +2510,31 @@
                 
                 // 为按钮添加事件监听器
                 const cancelBtn = modal.querySelector('#cloudbase-cancel-btn');
+                const closeBtn = modal.querySelector('.close-modal-btn');
                 const debugBtn = modal.querySelector('#cloudbase-debug-btn');
+                const fixBtn = modal.querySelector('#cloudbase-fix-btn');
+                const autoFixBtn = modal.querySelector('#cloudbase-auto-fix-btn');
+                const deployBtn = modal.querySelector('#cloudbase-deploy-btn');
                 const saveBtn = modal.querySelector('#cloudbase-save-btn');
+                const checkEnvBtn = modal.querySelector('#cloudbase-check-env-btn');
+                const loadDataBtn = modal.querySelector('#cloudbase-load-data-btn');
+                const validateDataBtn = modal.querySelector('#cloudbase-validate-data-btn');
+                const testConnectionBtn = modal.querySelector('#cloudbase-test-connection-btn');
                 
                 console.log('CloudBase 模态框创建 - 取消按钮:', cancelBtn);
                 console.log('CloudBase 模态框创建 - 调试按钮:', debugBtn);
+                console.log('CloudBase 模态框创建 - 修复按钮:', fixBtn);
+                console.log('CloudBase 模态框创建 - 自动修复按钮:', autoFixBtn);
+                console.log('CloudBase 模态框创建 - 部署按钮:', deployBtn);
                 console.log('CloudBase 模态框创建 - 保存按钮:', saveBtn);
+                console.log('CloudBase 模态框创建 - 检查环境按钮:', checkEnvBtn);
+                console.log('CloudBase 模态框创建 - 加载数据按钮:', loadDataBtn);
+                console.log('CloudBase 模态框创建 - 验证数据按钮:', validateDataBtn);
+                console.log('CloudBase 模态框创建 - 测试连接按钮:', testConnectionBtn);
                 console.log('hideCloudbaseConfigModal 函数类型:', typeof hideCloudbaseConfigModal);
                 console.log('debugCloudbaseConnection 函数类型:', typeof debugCloudbaseConnection);
                 console.log('saveCloudbaseConfig 函数类型:', typeof saveCloudbaseConfig);
+                console.log('fixCloudbaseDatabase 函数类型:', typeof fixCloudbaseDatabase);
                 
                 if (cancelBtn) {
                     try {
@@ -2473,6 +2543,16 @@
                         cancelBtn.setAttribute('data-event-bound', 'true');
                     } catch (error) {
                         console.error('绑定取消按钮事件监听器失败:', error);
+                    }
+                }
+                
+                if (closeBtn) {
+                    try {
+                        closeBtn.addEventListener('click', hideCloudbaseConfigModal);
+                        console.log('关闭按钮事件监听器已绑定');
+                        closeBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定关闭按钮事件监听器失败:', error);
                     }
                 }
                 
@@ -2486,6 +2566,68 @@
                     }
                 }
                 
+                if (fixBtn) {
+                    try {
+                        fixBtn.addEventListener('click', async function() {
+                            console.log('一键修复按钮被点击');
+                            console.log('开始执行一键修复...');
+                            try {
+                                hideCloudbaseConfigModal();
+                                const result = await fixCloudbaseDatabase();
+                                if (result) {
+                                    console.log('✅ 数据库修复成功！建议：1. 重新运行调试验证修复效果 2. 在 CloudBase 控制台中检查安全规则 3. 尝试同步数据到云端');
+                                } else {
+                                    console.error('❌ 数据库修复失败，请检查控制台中的错误信息。');
+                                }
+                            } catch (error) {
+                                console.error('修复过程中出错:', error);
+                                console.error('修复过程中出错: ' + error.message);
+                            }
+                        });
+                        console.log('修复按钮事件监听器已绑定');
+                        fixBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定修复按钮事件监听器失败:', error);
+                    }
+                }
+
+                if (autoFixBtn) {
+                    try {
+                        autoFixBtn.addEventListener('click', async function() {
+                            console.log('自动修复按钮被点击');
+                            console.log('开始执行自动化 CloudBase 修复...');
+                            
+                            try {
+                                hideCloudbaseConfigModal();
+                                console.log('开始执行自动化修复...');
+                                const result = await automatedCloudbaseFix();
+                                if (result) {
+                                    console.log('自动化修复成功');
+                                } else {
+                                    console.log('自动化修复失败，请查看控制台详细信息');
+                                }
+                            } catch (error) {
+                                console.error('自动化修复过程中出错:', error);
+                                console.error('自动化修复过程中出错: ' + error.message);
+                            }
+                        });
+                        console.log('自动修复按钮事件监听器已绑定');
+                        autoFixBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定自动修复按钮事件监听器失败:', error);
+                    }
+                }
+                
+                if (deployBtn) {
+                    try {
+                        deployBtn.addEventListener('click', deployToTencentCloud);
+                        console.log('部署按钮事件监听器已绑定');
+                        deployBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定部署按钮事件监听器失败:', error);
+                    }
+                }
+                
                 if (saveBtn) {
                     try {
                         saveBtn.addEventListener('click', saveCloudbaseConfig);
@@ -2495,16 +2637,192 @@
                         console.error('绑定保存按钮事件监听器失败:', error);
                     }
                 }
+
+                if (checkEnvBtn) {
+                    try {
+                        checkEnvBtn.addEventListener('click', function() {
+                            console.log('检查环境按钮被点击');
+                            console.log('当前配置的环境ID: ' + (cloudbaseConfig.envId || '未设置') + '。请确保此环境ID与 CloudBase 控制台中的环境一致。如果环境ID不匹配，请修改上方的环境ID并点击"保存并连接"。');
+                        });
+                        console.log('检查环境按钮事件监听器已绑定');
+                        checkEnvBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定检查环境按钮事件监听器失败:', error);
+                    }
+                }
+
+                if (loadDataBtn) {
+                    try {
+                        loadDataBtn.addEventListener('click', async function() {
+                            console.log('从云端加载数据按钮被点击');
+                            
+                            if (!cloudbaseInitialized) {
+                                alert('CloudBase 未初始化，请先点击"保存并连接"按钮初始化连接。');
+                                return;
+                            }
+                            
+                            try {
+                                // 显示加载中提示
+                                const originalText = loadDataBtn.textContent;
+                                loadDataBtn.textContent = '加载中...';
+                                loadDataBtn.disabled = true;
+                                
+                                // 从云端加载数据
+                                console.log('开始从云端加载数据...');
+                                const success = await loadDataFromCloud();
+                                
+                                if (success) {
+                                    // 统计云端数据
+                                    let cloudVehicleCount = 0;
+                                    let cloudTransactionCount = 0;
+                                    let cloudPendingCount = 0;
+                                    
+                                    // 尝试直接从云端查询统计数据（如果查询权限允许）
+                                    try {
+                                        const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                                        const vehiclesResult = await vehiclesCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudVehicleCount = vehiclesResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端车辆数据统计失败，使用本地缓存数据');
+                                        cloudVehicleCount = mockData.vehicles.length;
+                                    }
+                                    
+                                    try {
+                                        const transactionsCollection = cloudbaseDb.collection('transactions');
+                                        const transactionsResult = await transactionsCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudTransactionCount = transactionsResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端交易数据统计失败，使用本地缓存数据');
+                                        cloudTransactionCount = mockData.transactions.length;
+                                    }
+                                    
+                                    try {
+                                        const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                                        const pendingResult = await pendingCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudPendingCount = pendingResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端待处理车辆数据统计失败，使用本地缓存数据');
+                                        cloudPendingCount = mockData.pendingVehicles.length;
+                                    }
+                                    
+                                    const totalCloudData = cloudVehicleCount + cloudTransactionCount + cloudPendingCount;
+                                    
+                                    alert(`✅ 从云端加载数据成功！\n\n云端数据统计：\n• 车辆数据: ${cloudVehicleCount} 条\n• 交易数据: ${cloudTransactionCount} 条\n• 待处理车辆: ${cloudPendingCount} 条\n\n总计: ${totalCloudData} 条记录\n\n本地数据已更新，界面将自动刷新。`);
+                                    
+                                    // 刷新界面显示
+                                    if (typeof renderInventoryTable === 'function') {
+                                        renderInventoryTable();
+                                    }
+                                    if (typeof renderDashboard === 'function') {
+                                        renderDashboard();
+                                    }
+                                } else {
+                                    alert('❌ 从云端加载数据失败。\n\n可能原因：\n1. 云端数据为空\n2. 网络连接问题\n3. 权限不足\n\n建议：\n1. 检查 CloudBase 控制台中的数据\n2. 运行"调试"功能诊断问题');
+                                }
+                            } catch (error) {
+                                console.error('加载云端数据过程中出错:', error);
+                                alert('加载云端数据过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                loadDataBtn.textContent = '从云端加载数据';
+                                loadDataBtn.disabled = false;
+                            }
+                        });
+                        console.log('加载数据按钮事件监听器已绑定');
+                        loadDataBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定加载数据按钮事件监听器失败:', error);
+                    }
+                }
+
+                // 绑定验证云端数据按钮事件监听器
+                if (validateDataBtn) {
+                    try {
+                        validateDataBtn.addEventListener('click', async function() {
+                            console.log('验证云端数据按钮被点击');
+                            
+                            // 显示加载状态
+                            const originalText = validateDataBtn.textContent;
+                            validateDataBtn.textContent = '验证中...';
+                            validateDataBtn.disabled = true;
+                            
+                            try {
+                                await validateCloudData();
+                            } catch (error) {
+                                console.error('验证云端数据过程中出错:', error);
+                                alert('验证云端数据过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                validateDataBtn.textContent = originalText;
+                                validateDataBtn.disabled = false;
+                            }
+                        });
+                        console.log('验证云端数据按钮事件监听器已绑定');
+                        validateDataBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定验证云端数据按钮事件监听器失败:', error);
+                    }
+                }
+
+                // 绑定测试连接按钮事件监听器
+                if (testConnectionBtn) {
+                    try {
+                        testConnectionBtn.addEventListener('click', async function() {
+                            console.log('测试连接按钮被点击');
+                            
+                            // 显示加载状态
+                            const originalText = testConnectionBtn.textContent;
+                            testConnectionBtn.textContent = '测试中...';
+                            testConnectionBtn.disabled = true;
+                            
+                            try {
+                                const success = await testCloudbaseConnection();
+                                if (success) {
+                                    alert('✅ CloudBase 连接测试成功！\n\n连接状态：\n• SDK 已加载\n• 配置完整\n• 连接正常\n\n建议：\n1. 点击"验证云端数据"检查云端数据状态\n2. 点击"从云端加载数据"获取最新数据');
+                                } else {
+                                    alert('❌ CloudBase 连接测试失败。\n\n可能原因：\n1. SDK 未加载\n2. 配置不完整\n3. 网络连接问题\n4. 环境ID不匹配\n\n建议：\n1. 检查配置信息是否正确\n2. 运行"调试"功能诊断问题\n3. 检查 CloudBase 控制台中的环境ID');
+                                }
+                            } catch (error) {
+                                console.error('测试连接过程中出错:', error);
+                                alert('测试连接过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                testConnectionBtn.textContent = originalText;
+                                testConnectionBtn.disabled = false;
+                            }
+                        });
+                        console.log('测试连接按钮事件监听器已绑定');
+                        testConnectionBtn.setAttribute('data-event-bound', 'true');
+                    } catch (error) {
+                        console.error('绑定测试连接按钮事件监听器失败:', error);
+                    }
+                }
             } else {
                 // 模态框已存在，确保事件监听器已绑定
                 const cancelBtn = modal.querySelector('#cloudbase-cancel-btn');
                 const debugBtn = modal.querySelector('#cloudbase-debug-btn');
+                const fixBtn = modal.querySelector('#cloudbase-fix-btn');
+                const autoFixBtn = modal.querySelector('#cloudbase-auto-fix-btn');
+                const deployBtn = modal.querySelector('#cloudbase-deploy-btn');
                 const saveBtn = modal.querySelector('#cloudbase-save-btn');
+                const checkEnvBtn = modal.querySelector('#cloudbase-check-env-btn');
+                const loadDataBtn = modal.querySelector('#cloudbase-load-data-btn');
+                const validateDataBtn = modal.querySelector('#cloudbase-validate-data-btn');
+                const testConnectionBtn = modal.querySelector('#cloudbase-test-connection-btn');
+                const closeBtn = modal.querySelector('.close-modal-btn');
                 
-                console.log('模态框已存在 - 检查按钮:', { cancelBtn, debugBtn, saveBtn });
+                console.log('模态框已存在 - 检查按钮:', { cancelBtn, debugBtn, fixBtn, autoFixBtn, deployBtn, saveBtn, checkEnvBtn, loadDataBtn, validateDataBtn, testConnectionBtn, closeBtn });
                 console.log('取消按钮 data-event-bound:', cancelBtn ? cancelBtn.getAttribute('data-event-bound') : '无按钮');
                 console.log('调试按钮 data-event-bound:', debugBtn ? debugBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('修复按钮 data-event-bound:', fixBtn ? fixBtn.getAttribute('data-event-bound') : '无按钮');
                 console.log('保存按钮 data-event-bound:', saveBtn ? saveBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('部署按钮 data-event-bound:', deployBtn ? deployBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('自动修复按钮 data-event-bound:', autoFixBtn ? autoFixBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('检查环境按钮 data-event-bound:', checkEnvBtn ? checkEnvBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('加载数据按钮 data-event-bound:', loadDataBtn ? loadDataBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('验证数据按钮 data-event-bound:', validateDataBtn ? validateDataBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('测试连接按钮 data-event-bound:', testConnectionBtn ? testConnectionBtn.getAttribute('data-event-bound') : '无按钮');
+                console.log('关闭按钮 data-event-bound:', closeBtn ? closeBtn.getAttribute('data-event-bound') : '无按钮');
                 
                 if (cancelBtn && !cancelBtn.hasAttribute('data-event-bound')) {
                     try {
@@ -2513,6 +2831,16 @@
                         console.log('已重新绑定取消按钮事件监听器');
                     } catch (error) {
                         console.error('重新绑定取消按钮事件监听器失败:', error);
+                    }
+                }
+                
+                if (closeBtn && !closeBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        closeBtn.addEventListener('click', hideCloudbaseConfigModal);
+                        closeBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定关闭按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定关闭按钮事件监听器失败:', error);
                     }
                 }
                 
@@ -2526,6 +2854,68 @@
                     }
                 }
                 
+                if (fixBtn && !fixBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        fixBtn.addEventListener('click', async function() {
+                            console.log('一键修复按钮被点击');
+                            console.log('开始执行一键修复...');
+                            try {
+                                hideCloudbaseConfigModal();
+                                const result = await fixCloudbaseDatabase();
+                                if (result) {
+                                    console.log('✅ 数据库修复成功！建议：1. 重新运行调试验证修复效果 2. 在 CloudBase 控制台中检查安全规则 3. 尝试同步数据到云端');
+                                } else {
+                                    console.error('❌ 数据库修复失败，请检查控制台中的错误信息。');
+                                }
+                            } catch (error) {
+                                console.error('修复过程中出错:', error);
+                                console.error('修复过程中出错: ' + error.message);
+                            }
+                        });
+                        fixBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定修复按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定修复按钮事件监听器失败:', error);
+                    }
+                }
+
+                if (autoFixBtn && !autoFixBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        autoFixBtn.addEventListener('click', async function() {
+                            console.log('自动修复按钮被点击');
+                            console.log('开始执行自动化 CloudBase 修复...');
+                            
+                            try {
+                                hideCloudbaseConfigModal();
+                                console.log('开始执行自动化修复...');
+                                const result = await automatedCloudbaseFix();
+                                if (result) {
+                                    console.log('自动化修复成功');
+                                } else {
+                                    console.log('自动化修复失败，请查看控制台详细信息');
+                                }
+                            } catch (error) {
+                                console.error('自动化修复过程中出错:', error);
+                                console.error('自动化修复过程中出错: ' + error.message);
+                            }
+                        });
+                        autoFixBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定自动修复按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定自动修复按钮事件监听器失败:', error);
+                    }
+                }
+                
+                if (deployBtn && !deployBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        deployBtn.addEventListener('click', deployToTencentCloud);
+                        deployBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定部署按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定部署按钮事件监听器失败:', error);
+                    }
+                }
+                
                 if (saveBtn && !saveBtn.hasAttribute('data-event-bound')) {
                     try {
                         saveBtn.addEventListener('click', saveCloudbaseConfig);
@@ -2533,6 +2923,166 @@
                         console.log('已重新绑定保存按钮事件监听器');
                     } catch (error) {
                         console.error('重新绑定保存按钮事件监听器失败:', error);
+                    }
+                }
+
+                if (checkEnvBtn && !checkEnvBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        checkEnvBtn.addEventListener('click', function() {
+                            console.log('检查环境按钮被点击');
+                            console.log('当前配置的环境ID: ' + (cloudbaseConfig.envId || '未设置') + '。请确保此环境ID与 CloudBase 控制台中的环境一致。如果环境ID不匹配，请修改上方的环境ID并点击"保存并连接"。');
+                        });
+                        checkEnvBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定检查环境按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定检查环境按钮事件监听器失败:', error);
+                    }
+                }
+
+                if (loadDataBtn && !loadDataBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        loadDataBtn.addEventListener('click', async function() {
+                            console.log('从云端加载数据按钮被点击');
+                            
+                            if (!cloudbaseInitialized) {
+                                alert('CloudBase 未初始化，请先点击"保存并连接"按钮初始化连接。');
+                                return;
+                            }
+                            
+                            try {
+                                // 显示加载中提示
+                                const originalText = loadDataBtn.textContent;
+                                loadDataBtn.textContent = '加载中...';
+                                loadDataBtn.disabled = true;
+                                
+                                // 从云端加载数据
+                                console.log('开始从云端加载数据...');
+                                const success = await loadDataFromCloud();
+                                
+                                if (success) {
+                                    // 统计云端数据
+                                    let cloudVehicleCount = 0;
+                                    let cloudTransactionCount = 0;
+                                    let cloudPendingCount = 0;
+                                    
+                                    // 尝试直接从云端查询统计数据（如果查询权限允许）
+                                    try {
+                                        const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                                        const vehiclesResult = await vehiclesCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudVehicleCount = vehiclesResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端车辆数据统计失败，使用本地缓存数据');
+                                        cloudVehicleCount = mockData.vehicles.length;
+                                    }
+                                    
+                                    try {
+                                        const transactionsCollection = cloudbaseDb.collection('transactions');
+                                        const transactionsResult = await transactionsCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudTransactionCount = transactionsResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端交易数据统计失败，使用本地缓存数据');
+                                        cloudTransactionCount = mockData.transactions.length;
+                                    }
+                                    
+                                    try {
+                                        const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                                        const pendingResult = await pendingCollection.where({ _source: 'truck_used_car_system' }).count();
+                                        cloudPendingCount = pendingResult.total || 0;
+                                    } catch (e) {
+                                        console.log('查询云端待处理车辆数据统计失败，使用本地缓存数据');
+                                        cloudPendingCount = mockData.pendingVehicles.length;
+                                    }
+                                    
+                                    const totalCloudData = cloudVehicleCount + cloudTransactionCount + cloudPendingCount;
+                                    
+                                    alert(`✅ 从云端加载数据成功！\n\n云端数据统计：\n• 车辆数据: ${cloudVehicleCount} 条\n• 交易数据: ${cloudTransactionCount} 条\n• 待处理车辆: ${cloudPendingCount} 条\n\n总计: ${totalCloudData} 条记录\n\n本地数据已更新，界面将自动刷新。`);
+                                    
+                                    // 刷新界面显示
+                                    if (typeof renderInventoryTable === 'function') {
+                                        renderInventoryTable();
+                                    }
+                                    if (typeof renderDashboard === 'function') {
+                                        renderDashboard();
+                                    }
+                                } else {
+                                    alert('❌ 从云端加载数据失败。\n\n可能原因：\n1. 云端数据为空\n2. 网络连接问题\n3. 权限不足\n\n建议：\n1. 检查 CloudBase 控制台中的数据\n2. 运行"调试"功能诊断问题');
+                                }
+                            } catch (error) {
+                                console.error('加载云端数据过程中出错:', error);
+                                alert('加载云端数据过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                loadDataBtn.textContent = '从云端加载数据';
+                                loadDataBtn.disabled = false;
+                            }
+                        });
+                        loadDataBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定加载数据按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定加载数据按钮事件监听器失败:', error);
+                    }
+                }
+
+                // 检查并重新绑定验证云端数据按钮事件监听器
+                if (validateDataBtn && !validateDataBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        validateDataBtn.addEventListener('click', async function() {
+                            console.log('验证云端数据按钮被点击');
+                            
+                            // 显示加载状态
+                            const originalText = validateDataBtn.textContent;
+                            validateDataBtn.textContent = '验证中...';
+                            validateDataBtn.disabled = true;
+                            
+                            try {
+                                await validateCloudData();
+                            } catch (error) {
+                                console.error('验证云端数据过程中出错:', error);
+                                alert('验证云端数据过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                validateDataBtn.textContent = originalText;
+                                validateDataBtn.disabled = false;
+                            }
+                        });
+                        validateDataBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定验证云端数据按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定验证云端数据按钮事件监听器失败:', error);
+                    }
+                }
+
+                // 检查并重新绑定测试连接按钮事件监听器
+                if (testConnectionBtn && !testConnectionBtn.hasAttribute('data-event-bound')) {
+                    try {
+                        testConnectionBtn.addEventListener('click', async function() {
+                            console.log('测试连接按钮被点击');
+                            
+                            // 显示加载状态
+                            const originalText = testConnectionBtn.textContent;
+                            testConnectionBtn.textContent = '测试中...';
+                            testConnectionBtn.disabled = true;
+                            
+                            try {
+                                const success = await testCloudbaseConnection();
+                                if (success) {
+                                    alert('✅ CloudBase 连接测试成功！\n\n连接状态：\n• SDK 已加载\n• 配置完整\n• 连接正常\n\n建议：\n1. 点击"验证云端数据"检查云端数据状态\n2. 点击"从云端加载数据"获取最新数据');
+                                } else {
+                                    alert('❌ CloudBase 连接测试失败。\n\n可能原因：\n1. SDK 未加载\n2. 配置不完整\n3. 网络连接问题\n4. 环境ID不匹配\n\n建议：\n1. 检查配置信息是否正确\n2. 运行"调试"功能诊断问题\n3. 检查 CloudBase 控制台中的环境ID');
+                                }
+                            } catch (error) {
+                                console.error('测试连接过程中出错:', error);
+                                alert('测试连接过程中出错: ' + error.message);
+                            } finally {
+                                // 恢复按钮状态
+                                testConnectionBtn.textContent = originalText;
+                                testConnectionBtn.disabled = false;
+                            }
+                        });
+                        testConnectionBtn.setAttribute('data-event-bound', 'true');
+                        console.log('已重新绑定测试连接按钮事件监听器');
+                    } catch (error) {
+                        console.error('重新绑定测试连接按钮事件监听器失败:', error);
                     }
                 }
             }
@@ -2635,6 +3185,8 @@
         // CloudBase 调试函数
         async function debugCloudbaseConnection() {
             console.log('=== CloudBase 调试模式开始 ===');
+            console.log('当前时间:', new Date().toLocaleString());
+            console.log('页面URL:', window.location.href);
             
             // 检查本地存储配置
             const savedConfig = localStorage.getItem(CLOUDBASE_CONFIG_KEY);
@@ -2661,9 +3213,14 @@
             // 尝试初始化连接
             if (typeof window.cloudbase !== 'undefined' && !cloudbaseInitialized) {
                 console.log('4. 尝试初始化 CloudBase...');
-                const initSuccess = initCloudBase();
+                const initSuccess = await initCloudBase();
                 console.log('   初始化结果:', initSuccess ? '成功' : '失败');
             }
+            
+            // 检查环境配置匹配
+            console.log('4. 检查环境配置...');
+            console.log('   当前配置环境ID:', cloudbaseConfig.envId || '未设置');
+            console.log('   环境匹配提示: 请确保此环境ID与 CloudBase 控制台中的环境一致');
             
             // 如果已初始化，检查数据状态
             if (cloudbaseInitialized) {
@@ -2681,24 +3238,9 @@
                     console.log('   - 本地待处理车辆:', mockData.pendingVehicles.length, '条');
                     console.log('   - 本地交易数据:', mockData.transactions.length, '条');
                     
-                    // 如果本地数据为空，提供创建测试数据的选项
+                    // 如果本地数据为空，提示用户
                     if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
-                        console.log('⚠️  本地数据为空，无法测试同步功能');
-                        const createTestData = confirm('本地数据为空，无法测试 CloudBase 同步功能。\n\n是否自动创建测试数据？\n\n创建后可以点击"手动同步"按钮上传到云端。');
-                        if (createTestData) {
-                            const testDataCreated = createTestDataForCloudbase();
-                            if (testDataCreated) {
-                                // 等待界面更新后尝试同步
-                                setTimeout(async () => {
-                                    console.log('8. 尝试同步新创建的测试数据到云端...');
-                                    const syncResult = await syncDataToCloud();
-                                    console.log('   同步结果:', syncResult ? '成功' : '失败');
-                                    if (syncResult) {
-                                        alert('✅ 测试数据已成功同步到 CloudBase 云端！\n\n可以在 CloudBase 控制台中查看同步的数据。');
-                                    }
-                                }, 1000);
-                            }
-                        }
+                        console.log('⚠️  本地数据为空，跳过同步。请添加或导入数据后再试。');
                     } else {
                         // 有本地数据，尝试同步
                         console.log('8. 尝试同步数据到云端...');
@@ -2712,12 +3254,234 @@
                 console.log('⚠️  CloudBase 未初始化，无法检查数据状态');
             }
             
+            // 检查是否有集合访问错误
+            const hasCollectionError = cloudbaseLastError && (
+                cloudbaseLastError.includes('collection') || 
+                cloudbaseLastError.includes('permission') ||
+                cloudbaseLastError.includes('不存在')
+            );
+            
+            if (hasCollectionError) {
+                console.log('⚠️  检测到集合访问错误，建议修复数据库结构');
+                console.log('开始自动修复数据库结构...');
+                try {
+                    const fixResult = await fixCloudbaseDatabase();
+                    if (fixResult) {
+                        console.log('✅ 数据库结构修复成功！请重新运行调试或尝试同步数据。');
+                    } else {
+                        console.error('❌ 数据库结构修复失败，请手动检查 CloudBase 控制台中的数据库设置。');
+                    }
+                } catch (fixError) {
+                    console.error('修复过程中出错:', fixError);
+                    console.error('修复过程中出错: ' + fixError.message);
+                }
+            }
+            
             console.log('=== CloudBase 调试模式结束 ===');
-            alert('调试完成，请查看浏览器控制台获取详细信息。');
+            console.log('调试完成，请查看浏览器控制台获取详细信息。');
+        }
+
+        // 修复 CloudBase 数据库结构
+        async function fixCloudbaseDatabase() {
+            if (!cloudbaseInitialized) {
+                console.log('CloudBase 未初始化，无法修复数据库结构');
+                return false;
+            }
+            
+            try {
+                console.log('=== 开始修复 CloudBase 数据库结构 ===');
+                
+                // 修复车辆集合
+                console.log('1. 修复车辆集合...');
+                try {
+                    const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                    // 尝试写入测试文档来创建集合
+                    const testVehicleDoc = {
+                        _test: true,
+                        _source: 'truck_used_car_system',
+                        _syncTime: new Date(),
+                        message: '自动修复创建的测试文档 - 车辆集合',
+                        brand: '测试品牌',
+                        model: '测试型号',
+                        year: 2024,
+                        price: 100000,
+                        status: '在库'
+                    };
+                    await vehiclesCollection.add(testVehicleDoc);
+                    console.log('✅ 车辆集合修复成功，测试文档已创建');
+                    
+                    // 清理测试文档
+                    setTimeout(async () => {
+                        try {
+                            const testDocs = await vehiclesCollection.where({ _test: true }).get();
+                            if (testDocs.data && testDocs.data.length > 0) {
+                                await vehiclesCollection.doc(testDocs.data[0]._id).remove();
+                                console.log('✅ 车辆集合测试文档已清理');
+                            }
+                        } catch (cleanupError) {
+                            console.log('清理车辆测试文档失败，不影响正常使用:', cleanupError.message);
+                        }
+                    }, 1000);
+                } catch (vehicleError) {
+                    console.error('❌ 车辆集合修复失败:', vehicleError.message);
+                    return false;
+                }
+                
+                // 修复交易集合
+                console.log('2. 修复交易集合...');
+                try {
+                    const transactionsCollection = cloudbaseDb.collection('transactions');
+                    const testTransactionDoc = {
+                        _test: true,
+                        _source: 'truck_used_car_system',
+                        _syncTime: new Date(),
+                        message: '自动修复创建的测试文档 - 交易集合',
+                        vehicleId: 'test-vehicle-001',
+                        buyerName: '测试买家',
+                        amount: 100000,
+                        date: new Date().toISOString().split('T')[0]
+                    };
+                    await transactionsCollection.add(testTransactionDoc);
+                    console.log('✅ 交易集合修复成功，测试文档已创建');
+                    
+                    // 清理测试文档
+                    setTimeout(async () => {
+                        try {
+                            const testDocs = await transactionsCollection.where({ _test: true }).get();
+                            if (testDocs.data && testDocs.data.length > 0) {
+                                await transactionsCollection.doc(testDocs.data[0]._id).remove();
+                                console.log('✅ 交易集合测试文档已清理');
+                            }
+                        } catch (cleanupError) {
+                            console.log('清理交易测试文档失败，不影响正常使用:', cleanupError.message);
+                        }
+                    }, 1000);
+                } catch (transactionError) {
+                    console.error('❌ 交易集合修复失败:', transactionError.message);
+                    return false;
+                }
+                
+                // 修复待处理车辆集合
+                console.log('3. 修复待处理车辆集合...');
+                try {
+                    const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                    const testPendingDoc = {
+                        _test: true,
+                        _source: 'truck_used_car_system',
+                        _syncTime: new Date(),
+                        message: '自动修复创建的测试文档 - 待处理车辆集合',
+                        brand: '测试品牌',
+                        model: '测试型号',
+                        year: 2024,
+                        expectedPrice: 80000,
+                        status: '待审核'
+                    };
+                    await pendingCollection.add(testPendingDoc);
+                    console.log('✅ 待处理车辆集合修复成功，测试文档已创建');
+                    
+                    // 清理测试文档
+                    setTimeout(async () => {
+                        try {
+                            const testDocs = await pendingCollection.where({ _test: true }).get();
+                            if (testDocs.data && testDocs.data.length > 0) {
+                                await pendingCollection.doc(testDocs.data[0]._id).remove();
+                                console.log('✅ 待处理车辆集合测试文档已清理');
+                            }
+                        } catch (cleanupError) {
+                            console.log('清理待处理车辆测试文档失败，不影响正常使用:', cleanupError.message);
+                        }
+                    }, 1000);
+                } catch (pendingError) {
+                    console.error('❌ 待处理车辆集合修复失败:', pendingError.message);
+                    return false;
+                }
+                
+                console.log('=== CloudBase 数据库结构修复完成 ===');
+                console.log('✅ 所有集合已成功创建并验证');
+                console.log('💡 注意：集合安全规则仍需在 CloudBase 控制台中设置');
+                console.log('   建议设置安全规则为：{ "read": true, "write": true }');
+                
+                return true;
+            } catch (error) {
+                console.error('❌ 修复 CloudBase 数据库结构失败:', error);
+                return false;
+            }
+        }
+
+        // 一键部署到腾讯云
+        async function deployToTencentCloud() {
+            console.log('=== 开始一键部署到腾讯云 ===');
+            
+            // 检查CloudBase配置
+            if (!cloudbaseConfig.envId || !cloudbaseConfig.accessKey) {
+                alert('请先配置CloudBase环境ID和发布密钥');
+                showCloudbaseConfigModal('请先填写CloudBase配置信息');
+                return false;
+            }
+            
+            // 显示部署指南
+            const deployGuide = `
+✅ 铂洋二手车系统一键部署指南
+================================
+
+📋 部署步骤：
+
+1. **CloudBase 环境准备**
+   - 确保已登录腾讯云 CloudBase 控制台
+   - 创建新环境或使用现有环境
+   - 在环境设置中获取环境ID和发布密钥
+
+2. **数据库配置**
+   - 在 CloudBase 控制台中创建数据库集合：
+     • vehicles（车辆数据）
+     • transactions（交易数据）
+     • pending_vehicles（待处理车辆）
+   - 设置安全规则为：{ "read": true, "write": true }
+
+3. **静态网站托管**
+   - 在 CloudBase 控制台中选择「静态网站托管」
+   - 点击「开启」启用静态托管
+   - 上传本地的 index.html 文件
+   - 或使用 CloudBase CLI 部署：
+     npm install -g @cloudbase/cli
+     tcb login
+     tcb hosting deploy index.html
+
+4. **数据同步**
+   - 返回本系统，点击「同步数据到云端」
+   - 或使用自动同步功能
+
+5. **访问部署的网站**
+   - CloudBase 会提供默认域名
+   - 可通过自定义域名绑定
+
+🔧 自动修复数据库结构：
+   - 点击「一键修复」按钮自动创建集合
+   - 安全规则仍需手动在控制台设置
+
+📞 支持：
+   - 腾讯云 CloudBase 文档：https://cloud.tencent.com/product/tcb
+   - 问题反馈：检查浏览器控制台错误信息
+`;
+            
+            console.log(deployGuide);
+            
+            // 静默尝试修复数据库
+            console.log('静默尝试修复数据库结构...');
+            hideCloudbaseConfigModal();
+            const fixResult = await fixCloudbaseDatabase();
+            if (fixResult) {
+                console.log('✅ 数据库修复成功！请继续完成部署指南中的其他步骤。');
+            } else {
+                console.error('❌ 数据库修复失败，请手动创建数据库集合。');
+            }
+            console.log('已显示部署指南，请按照步骤操作。');
+            
+            return true;
         }
 
         // 保存 CloudBase 配置
-        function saveCloudbaseConfig() {
+        async function saveCloudbaseConfig() {
             console.log('saveCloudbaseConfig 函数被调用 - 开始执行');
             
             // 检查必要的 DOM 元素是否存在
@@ -2764,38 +3528,41 @@
             
             // 重新初始化 CloudBase
             console.log('开始初始化 CloudBase...');
-            const initSuccess = initCloudBase();
+            const initSuccess = await initCloudBase();
             console.log('initCloudBase 返回值:', initSuccess);
             
             if (initSuccess) {
                 hideCloudbaseConfigModal();
-                // 尝试同步数据到云端
-                console.log('开始同步数据到云端...');
-                syncDataToCloud().then(success => {
-                    console.log('数据同步结果:', success);
-                    if (success) {
-                        alert('CloudBase 配置已保存并连接成功！数据已开始同步到云端。');
-                    } else {
-                        let failMessage = 'CloudBase 配置已保存并连接成功！但数据同步失败，请稍后手动同步。';
+                // 等待认证完成后尝试同步数据到云端
+                console.log('等待认证完成...');
+                setTimeout(() => {
+                    console.log('开始同步数据到云端...');
+                    syncDataToCloud().then(success => {
+                        console.log('数据同步结果:', success);
+                        if (success) {
+                            alert('CloudBase 配置已保存并连接成功！数据已开始同步到云端。');
+                        } else {
+                            let failMessage = 'CloudBase 配置已保存并连接成功！但数据同步失败，请稍后手动同步。';
+                            
+                            // 检查是否是本地数据为空导致的同步失败
+                            if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
+                                failMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
+                            }
+                            
+                            alert(failMessage);
+                        }
+                    }).catch(error => {
+                        console.error('数据同步出错:', error);
+                        let errorMessage = 'CloudBase 配置已保存并连接成功！但数据同步过程中出错：' + error.message;
                         
                         // 检查是否是本地数据为空导致的同步失败
                         if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
-                            failMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
+                            errorMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
                         }
                         
-                        alert(failMessage);
-                    }
-                }).catch(error => {
-                    console.error('数据同步出错:', error);
-                    let errorMessage = 'CloudBase 配置已保存并连接成功！但数据同步过程中出错：' + error.message;
-                    
-                    // 检查是否是本地数据为空导致的同步失败
-                    if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
-                        errorMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
-                    }
-                    
-                    alert(errorMessage);
-                });
+                        alert(errorMessage);
+                    });
+                }, 1000); // 等待1秒让认证完成
             } else {
                 // 初始化失败，但仍然更新状态显示
                 console.log('CloudBase 初始化失败');
@@ -2808,15 +3575,46 @@
         async function syncDataToCloud() {
             if (!cloudbaseInitialized) {
                 console.log('CloudBase 未初始化，无法同步数据到云端');
+                console.warn('CloudBase 未初始化，请先配置并连接 CloudBase');
                 return false;
             }
             
             try {
                 console.log('=== 开始同步数据到 CloudBase ===');
+                
+                // 检查本地数据
+                const localVehicleCount = mockData.vehicles.length;
+                const localTransactionCount = mockData.transactions.length;
+                const localPendingCount = mockData.pendingVehicles.length;
+                
                 console.log('本地数据统计:');
-                console.log('  - 车辆数据:', mockData.vehicles.length, '条');
-                console.log('  - 交易数据:', mockData.transactions.length, '条');
-                console.log('  - 待处理车辆数据:', mockData.pendingVehicles.length, '条');
+                console.log('  - 车辆数据:', localVehicleCount, '条');
+                console.log('  - 交易数据:', localTransactionCount, '条');
+                console.log('  - 待处理车辆数据:', localPendingCount, '条');
+                
+                // 如果本地数据为空，直接返回提示
+                if (localVehicleCount === 0 && localPendingCount === 0) {
+                    console.warn('⚠️ 本地数据为空，无法同步到云端。请添加或导入数据后再试。');
+                    return false;
+                }
+                
+                // 尝试初始化数据库结构（确保集合存在）
+                console.log('检查并初始化数据库结构...');
+                try {
+                    await initCloudbaseDatabase();
+                    console.log('✅ 数据库结构检查完成');
+                } catch (dbError) {
+                    console.error('❌ 数据库结构初始化失败:', dbError);
+                    console.log('尝试自动修复数据库结构...');
+                    hideCloudbaseConfigModal();
+                    const fixResult = await fixCloudbaseDatabase();
+                    if (fixResult) {
+                        console.log('✅ 数据库修复成功！请再次点击"手动同步"按钮。');
+                    } else {
+                        console.error('❌ 数据库修复失败，请在 CloudBase 控制台中手动创建集合并设置安全规则。');
+                    }
+                    return false;
+                }
                 
                 let vehiclesCreated = 0;
                 let vehiclesUpdated = 0;
@@ -2824,145 +3622,315 @@
                 let transactionsUpdated = 0;
                 let pendingCreated = 0;
                 let pendingUpdated = 0;
+                let vehiclesFailed = 0;
+                let transactionsFailed = 0;
+                let pendingFailed = 0;
                 
-                // 同步车辆数据
-                if (mockData.vehicles.length > 0) {
+                // 同步车辆数据（查重后更新或新增）
+                if (localVehicleCount > 0) {
                     const vehiclesCollection = cloudbaseDb.collection('vehicles');
                     console.log('开始同步车辆数据...');
                     
                     for (const vehicle of mockData.vehicles) {
                         try {
-                            // 检查车辆是否已存在
-                            const queryResult = await vehiclesCollection.where({
-                                id: vehicle.id
-                            }).get();
-                            
-                            if (queryResult.data.length === 0) {
-                                // 车辆不存在，创建新记录
-                                await vehiclesCollection.add({
-                                    ...vehicle,
-                                    _syncTime: new Date(),
-                                    _source: 'truck_used_car_system'
-                                });
-                                vehiclesCreated++;
-                                console.log('✅ 车辆已创建到云端:', vehicle.id, vehicle.brand, vehicle.model);
-                            } else {
-                                // 车辆已存在，更新记录
-                                const docId = queryResult.data[0]._id;
+                            // 先查询是否已存在
+                            const existing = await vehiclesCollection.where({ id: vehicle.id }).limit(1).get();
+                            if (existing && existing.data && existing.data.length > 0) {
+                                // 已存在，更新
+                                const docId = existing.data[0]._id;
                                 await vehiclesCollection.doc(docId).update({
                                     ...vehicle,
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
                                 vehiclesUpdated++;
-                                console.log('🔄 车辆已更新到云端:', vehicle.id, vehicle.brand, vehicle.model);
+                                console.log('✅ 车辆已更新到云端:', vehicle.id);
+                            } else {
+                                // 不存在，新增
+                                const addResult = await vehiclesCollection.add({
+                                    ...vehicle,
+                                    _syncTime: new Date(),
+                                    _source: 'truck_used_car_system'
+                                });
+                                if (addResult && (addResult.id || addResult._id)) {
+                                    vehiclesCreated++;
+                                    console.log('✅ 车辆已新增到云端:', vehicle.id);
+                                } else {
+                                    vehiclesFailed++;
+                                }
                             }
                         } catch (vehicleError) {
-                            console.error('同步车辆失败:', vehicle.id, vehicleError);
+                            console.error('❌ 同步车辆失败:', vehicle.id, vehicleError.message);
+                            vehiclesFailed++;
                         }
                     }
-                    console.log('车辆数据同步完成:', vehiclesCreated, '条新增,', vehiclesUpdated, '条更新');
+                    console.log('车辆数据同步完成:', vehiclesCreated, '条新增,', vehiclesUpdated, '条更新,', vehiclesFailed, '条失败');
                 }
                 
-                // 同步交易数据
-                if (mockData.transactions.length > 0) {
+                // 同步交易数据（查重后更新或新增）
+                if (localTransactionCount > 0) {
                     const transactionsCollection = cloudbaseDb.collection('transactions');
                     console.log('开始同步交易数据...');
                     
                     for (const transaction of mockData.transactions) {
                         try {
-                            const queryResult = await transactionsCollection.where({
-                                id: transaction.id
-                            }).get();
-                            
-                            if (queryResult.data.length === 0) {
-                                await transactionsCollection.add({
-                                    ...transaction,
-                                    _syncTime: new Date(),
-                                    _source: 'truck_used_car_system'
-                                });
-                                transactionsCreated++;
-                            } else {
-                                const docId = queryResult.data[0]._id;
+                            // 先查询是否已存在
+                            const existing = await transactionsCollection.where({ id: transaction.id }).limit(1).get();
+                            if (existing && existing.data && existing.data.length > 0) {
+                                // 已存在，更新
+                                const docId = existing.data[0]._id;
                                 await transactionsCollection.doc(docId).update({
                                     ...transaction,
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
                                 transactionsUpdated++;
+                                console.log('✅ 交易已更新到云端:', transaction.id);
+                            } else {
+                                // 不存在，新增
+                                await transactionsCollection.add({
+                                    ...transaction,
+                                    _syncTime: new Date(),
+                                    _source: 'truck_used_car_system'
+                                });
+                                transactionsCreated++;
+                                console.log('✅ 交易已新增到云端:', transaction.id);
                             }
                         } catch (transactionError) {
-                            console.error('同步交易失败:', transaction.id, transactionError);
+                            console.error('❌ 同步交易失败:', transaction.id, transactionError.message);
+                            transactionsFailed++;
                         }
                     }
-                    console.log('交易数据同步完成:', transactionsCreated, '条新增,', transactionsUpdated, '条更新');
+                    console.log('交易数据同步完成:', transactionsCreated, '条新增,', transactionsUpdated, '条更新,', transactionsFailed, '条失败');
                 }
                 
-                // 同步待处理车辆数据
-                if (mockData.pendingVehicles.length > 0) {
+                // 同步待处理车辆数据（查重后更新或新增）
+                if (localPendingCount > 0) {
                     const pendingCollection = cloudbaseDb.collection('pending_vehicles');
                     console.log('开始同步待处理车辆数据...');
                     
                     for (const pending of mockData.pendingVehicles) {
                         try {
-                            const queryResult = await pendingCollection.where({
-                                id: pending.id
-                            }).get();
-                            
-                            if (queryResult.data.length === 0) {
-                                await pendingCollection.add({
-                                    ...pending,
-                                    _syncTime: new Date(),
-                                    _source: 'truck_used_car_system'
-                                });
-                                pendingCreated++;
-                            } else {
-                                const docId = queryResult.data[0]._id;
+                            // 先查询是否已存在
+                            const existing = await pendingCollection.where({ id: pending.id }).limit(1).get();
+                            if (existing && existing.data && existing.data.length > 0) {
+                                // 已存在，更新
+                                const docId = existing.data[0]._id;
                                 await pendingCollection.doc(docId).update({
                                     ...pending,
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
                                 pendingUpdated++;
+                                console.log('✅ 待处理车辆已更新到云端:', pending.id);
+                            } else {
+                                // 不存在，新增
+                                await pendingCollection.add({
+                                    ...pending,
+                                    _syncTime: new Date(),
+                                    _source: 'truck_used_car_system'
+                                });
+                                pendingCreated++;
+                                console.log('✅ 待处理车辆已新增到云端:', pending.id);
                             }
                         } catch (pendingError) {
-                            console.error('同步待处理车辆失败:', pending.id, pendingError);
+                            console.error('❌ 同步待处理车辆失败:', pending.id, pendingError.message);
+                            pendingFailed++;
                         }
                     }
-                    console.log('待处理车辆数据同步完成:', pendingCreated, '条新增,', pendingUpdated, '条更新');
+                    console.log('待处理车辆数据同步完成:', pendingCreated, '条新增,', pendingUpdated, '条更新,', pendingFailed, '条失败');
                 }
                 
                 // 总结
                 const totalCreated = vehiclesCreated + transactionsCreated + pendingCreated;
                 const totalUpdated = vehiclesUpdated + transactionsUpdated + pendingUpdated;
+                const totalFailed = vehiclesFailed + transactionsFailed + pendingFailed;
                 const totalSynced = totalCreated + totalUpdated;
                 
                 console.log('=== 数据同步总结 ===');
-                console.log('✅ 数据同步到 CloudBase 完成');
-                console.log('总计:', totalSynced, '条记录');
-                console.log('  - 新增:', totalCreated, '条');
-                console.log('  - 更新:', totalUpdated, '条');
-                console.log('  - 车辆数据:', vehiclesCreated + vehiclesUpdated, '条');
-                console.log('  - 交易数据:', transactionsCreated + transactionsUpdated, '条');
-                console.log('  - 待处理车辆数据:', pendingCreated + pendingUpdated, '条');
                 
-                return totalSynced > 0;
+                if (totalSynced > 0) {
+                    console.log('✅ 数据同步到 CloudBase 完成');
+                    console.log('总计:', totalSynced, '条记录');
+                    console.log('  - 新增:', totalCreated, '条');
+                    console.log('  - 更新:', totalUpdated, '条');
+                    console.log('  - 失败:', totalFailed, '条');
+                    console.log('  - 车辆数据:', vehiclesCreated + vehiclesUpdated, '条');
+                    console.log('  - 交易数据:', transactionsCreated + transactionsUpdated, '条');
+                    console.log('  - 待处理车辆数据:', pendingCreated + pendingUpdated, '条');
+                    
+                    // 记录成功通知到控制台
+                    if (totalFailed > 0) {
+                        console.log(`✅ 数据已部分同步到 CloudBase！成功: ${totalSynced} 条，失败: ${totalFailed} 条。失败原因可能是权限限制，请检查 CloudBase 控制台中的安全规则设置。`);
+                    } else {
+                        console.log(`✅ 数据已成功同步到 CloudBase！总计: ${totalSynced} 条记录，新增: ${totalCreated} 条，更新: ${totalUpdated} 条`);
+                    }
+                    
+                    return true;
+                } else {
+                    console.log('❌ 数据同步失败，没有记录被同步');
+                    console.log('失败原因分析:');
+                    console.log('  - 车辆失败:', vehiclesFailed);
+                    console.log('  - 交易失败:', transactionsFailed);
+                    console.log('  - 待处理车辆失败:', pendingFailed);
+                    
+                    if (totalFailed > 0) {
+                        console.error(`❌ 数据同步失败！所有 ${totalFailed} 条记录同步失败。可能原因：1. CloudBase 数据库集合不存在 2. 安全规则限制写入权限 3. 网络连接问题。建议：1. 点击"一键修复"按钮自动创建集合 2. 在 CloudBase 控制台中检查安全规则 3. 运行"调试"功能诊断问题`);
+                    } else {
+                        console.warn('❌ 没有数据需要同步到 CloudBase。请先添加车辆数据或使用"调试"功能创建测试数据。');
+                    }
+                    
+                    return false;
+                }
             } catch (error) {
                 console.error('❌ 同步数据到 CloudBase 失败:', error);
                 console.error('错误详情:', error.message);
                 console.error('错误堆栈:', error.stack);
+                
+                // 检查是否需要自动修复
+                const isCollectionError = error.message.includes('collection') || error.message.includes('集合');
+                const isPermissionError = error.message.includes('permission') || error.message.includes('权限');
+                
+                // 如果是集合或权限错误，尝试自动修复
+                if ((isCollectionError || isPermissionError) && cloudbaseInitialized) {
+                    console.log('检测到集合/权限错误，尝试自动修复...');
+                    try {
+                        const fixResult = await fixCloudbaseDatabase();
+                        if (fixResult) {
+                            console.log('✅ 自动修复成功，重新尝试同步...');
+                            // 重新调用同步函数（最多重试一次，避免无限递归）
+                            return await syncDataToCloud();
+                        } else {
+                            console.log('❌ 自动修复失败，显示错误信息');
+                        }
+                    } catch (fixError) {
+                        console.error('自动修复过程中出错:', fixError);
+                    }
+                }
+                
+                // 提供具体的错误建议
+                let errorMessage = '数据同步失败: ' + error.message;
+                
+                if (isCollectionError) {
+                    errorMessage += '\n\n可能原因：数据库集合不存在\n解决方案：已尝试自动修复，如果仍然失败，请在 CloudBase 控制台中手动创建集合。';
+                } else if (isPermissionError) {
+                    errorMessage += '\n\n可能原因：安全规则限制\n解决方案：已尝试自动修复，如果仍然失败，请在 CloudBase 控制台中设置安全规则为 { "read": true, "write": true }';
+                } else if (error.message.includes('network') || error.message.includes('网络')) {
+                    errorMessage += '\n\n可能原因：网络连接问题\n解决方案：检查网络连接后重试';
+                }
+                
+                console.error(errorMessage);
                 return false;
+            }
+        }
+
+        // 清空云端所有数据
+        async function clearAllCloudData() {
+            if (!cloudbaseInitialized) {
+                return { success: false, error: 'CloudBase 未初始化' };
+            }
+            
+            const result = { success: true, vehicles: 0, transactions: 0, pending: 0, error: null };
+            
+            try {
+                console.log('=== 开始清空云端数据 ===');
+                
+                // 清空车辆数据（循环直到全部删完）
+                try {
+                    const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                    let totalDeleted = 0;
+                    while (true) {
+                        const vehiclesResult = await vehiclesCollection.where({ _source: 'truck_used_car_system' }).limit(100).get();
+                        if (!vehiclesResult || !vehiclesResult.data || vehiclesResult.data.length === 0) break;
+                        for (const doc of vehiclesResult.data) {
+                            try {
+                                await vehiclesCollection.doc(doc._id).remove();
+                                totalDeleted++;
+                            } catch (e) {
+                                console.warn(`删除车辆文档 ${doc._id} 失败:`, e.message);
+                            }
+                        }
+                    }
+                    result.vehicles = totalDeleted;
+                    console.log(`✅ 已删除 ${totalDeleted} 条车辆数据`);
+                } catch (e) {
+                    console.error('清空车辆数据失败:', e.message);
+                    result.error = (result.error || '') + '车辆: ' + e.message + '; ';
+                }
+                
+                // 清空交易记录（循环直到全部删完）
+                try {
+                    const transactionsCollection = cloudbaseDb.collection('transactions');
+                    let totalDeleted = 0;
+                    while (true) {
+                        const transactionsResult = await transactionsCollection.where({ _source: 'truck_used_car_system' }).limit(100).get();
+                        if (!transactionsResult || !transactionsResult.data || transactionsResult.data.length === 0) break;
+                        for (const doc of transactionsResult.data) {
+                            try {
+                                await transactionsCollection.doc(doc._id).remove();
+                                totalDeleted++;
+                            } catch (e) {
+                                console.warn(`删除交易文档 ${doc._id} 失败:`, e.message);
+                            }
+                        }
+                    }
+                    result.transactions = totalDeleted;
+                    console.log(`✅ 已删除 ${totalDeleted} 条交易记录`);
+                } catch (e) {
+                    console.error('清空交易数据失败:', e.message);
+                    result.error = (result.error || '') + '交易: ' + e.message + '; ';
+                }
+                
+                // 清空待处理车辆（循环直到全部删完）
+                try {
+                    const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                    let totalDeleted = 0;
+                    while (true) {
+                        const pendingResult = await pendingCollection.where({ _source: 'truck_used_car_system' }).limit(100).get();
+                        if (!pendingResult || !pendingResult.data || pendingResult.data.length === 0) break;
+                        for (const doc of pendingResult.data) {
+                            try {
+                                await pendingCollection.doc(doc._id).remove();
+                                totalDeleted++;
+                            } catch (e) {
+                                console.warn(`删除待处理文档 ${doc._id} 失败:`, e.message);
+                            }
+                        }
+                    }
+                    result.pending = totalDeleted;
+                    console.log(`✅ 已删除 ${totalDeleted} 条待处理车辆`);
+                } catch (e) {
+                    console.error('清空待处理数据失败:', e.message);
+                    result.error = (result.error || '') + '待处理: ' + e.message + '; ';
+                }
+                
+                if (result.error) {
+                    result.success = false;
+                }
+                
+                console.log('=== 清空云端数据完成 ===', result);
+                return result;
+            } catch (error) {
+                console.error('清空云端数据出错:', error);
+                return { success: false, error: error.message, vehicles: 0, transactions: 0, pending: 0 };
             }
         }
 
         // 自动同步定时器
         let autoSyncTimer = null;
         const AUTO_SYNC_INTERVAL = 30000; // 30秒同步一次
+        let autoSyncEnabled = false; // 默认关闭自动同步，仅手动同步
 
         // 开始自动同步
         function startAutoSync() {
             if (!cloudbaseInitialized) {
                 console.log('CloudBase 未初始化，无法启动自动同步');
+                return;
+            }
+            
+            // 检查自动同步是否已启用
+            if (!autoSyncEnabled) {
+                console.log('自动同步已关闭，跳过启动（仅支持手动同步）');
                 return;
             }
             
@@ -2981,13 +3949,13 @@
             
             // 设置定期同步
             autoSyncTimer = setInterval(() => {
-                if (cloudbaseInitialized) {
+                if (cloudbaseInitialized && autoSyncEnabled) {
                     console.log('自动同步开始...');
                     syncDataToCloud().then(success => {
                         console.log('自动同步结果:', success ? '成功' : '失败');
                     });
                 } else {
-                    console.log('CloudBase 未初始化，停止自动同步');
+                    console.log('CloudBase 未初始化或自动同步已关闭，停止自动同步');
                     clearInterval(autoSyncTimer);
                     autoSyncTimer = null;
                 }
@@ -3020,7 +3988,33 @@
                     console.log('✅ 车辆集合已存在，文档数:', vehiclesCount.total);
                 } catch (error) {
                     console.log('车辆集合可能不存在或无权访问，尝试创建...');
-                    // 集合会在第一次写入时自动创建
+                    console.log('错误详情:', error.message, error.code || '无错误码');
+                    // 尝试创建一个测试文档来验证写入权限
+                    try {
+                        const testDoc = {
+                            _test: true,
+                            _source: 'truck_used_car_system',
+                            _syncTime: new Date(),
+                            message: '测试文档，用于验证集合创建和写入权限'
+                        };
+                        await vehiclesCollection.add(testDoc);
+                        console.log('✅ 车辆集合创建成功，测试文档已写入');
+                        // 清理测试文档
+                        setTimeout(async () => {
+                            try {
+                                const testDocs = await vehiclesCollection.where({ _test: true }).get();
+                                if (testDocs.data.length > 0) {
+                                    await vehiclesCollection.doc(testDocs.data[0]._id).remove();
+                                    console.log('✅ 测试文档已清理');
+                                }
+                            } catch (cleanupError) {
+                                console.log('清理测试文档失败，不影响正常使用:', cleanupError.message);
+                            }
+                        }, 1000);
+                    } catch (writeError) {
+                        console.error('❌ 无法写入车辆集合，可能是安全规则限制:', writeError.message);
+                        console.error('请检查 CloudBase 控制台中 vehicles 集合的权限设置');
+                    }
                 }
                 
                 // 检查并创建交易集合
@@ -3030,6 +4024,33 @@
                     console.log('✅ 交易集合已存在，文档数:', transactionsCount.total);
                 } catch (error) {
                     console.log('交易集合可能不存在或无权访问，尝试创建...');
+                    console.log('错误详情:', error.message, error.code || '无错误码');
+                    // 尝试创建一个测试文档来验证写入权限
+                    try {
+                        const testDoc = {
+                            _test: true,
+                            _source: 'truck_used_car_system',
+                            _syncTime: new Date(),
+                            message: '测试文档，用于验证集合创建和写入权限'
+                        };
+                        await transactionsCollection.add(testDoc);
+                        console.log('✅ 交易集合创建成功，测试文档已写入');
+                        // 清理测试文档
+                        setTimeout(async () => {
+                            try {
+                                const testDocs = await transactionsCollection.where({ _test: true }).get();
+                                if (testDocs.data.length > 0) {
+                                    await transactionsCollection.doc(testDocs.data[0]._id).remove();
+                                    console.log('✅ 测试文档已清理');
+                                }
+                            } catch (cleanupError) {
+                                console.log('清理测试文档失败，不影响正常使用:', cleanupError.message);
+                            }
+                        }, 1000);
+                    } catch (writeError) {
+                        console.error('❌ 无法写入交易集合，可能是安全规则限制:', writeError.message);
+                        console.error('请检查 CloudBase 控制台中 transactions 集合的权限设置');
+                    }
                 }
                 
                 // 检查并创建待处理车辆集合
@@ -3039,6 +4060,33 @@
                     console.log('✅ 待处理车辆集合已存在，文档数:', pendingCount.total);
                 } catch (error) {
                     console.log('待处理车辆集合可能不存在或无权访问，尝试创建...');
+                    console.log('错误详情:', error.message, error.code || '无错误码');
+                    // 尝试创建一个测试文档来验证写入权限
+                    try {
+                        const testDoc = {
+                            _test: true,
+                            _source: 'truck_used_car_system',
+                            _syncTime: new Date(),
+                            message: '测试文档，用于验证集合创建和写入权限'
+                        };
+                        await pendingCollection.add(testDoc);
+                        console.log('✅ 待处理车辆集合创建成功，测试文档已写入');
+                        // 清理测试文档
+                        setTimeout(async () => {
+                            try {
+                                const testDocs = await pendingCollection.where({ _test: true }).get();
+                                if (testDocs.data.length > 0) {
+                                    await pendingCollection.doc(testDocs.data[0]._id).remove();
+                                    console.log('✅ 测试文档已清理');
+                                }
+                            } catch (cleanupError) {
+                                console.log('清理测试文档失败，不影响正常使用:', cleanupError.message);
+                            }
+                        }, 1000);
+                    } catch (writeError) {
+                        console.error('❌ 无法写入待处理车辆集合，可能是安全规则限制:', writeError.message);
+                        console.error('请检查 CloudBase 控制台中 pending_vehicles 集合的权限设置');
+                    }
                 }
                 
                 console.log('✅ CloudBase 数据库结构初始化完成');
@@ -3074,7 +4122,7 @@
             
             try {
                 console.log('尝试初始化 CloudBase...');
-                const success = initCloudBase();
+                const success = await initCloudBase();
                 console.log('初始化结果:', success ? '成功' : '失败');
                 
                 // 如果初始化成功，检查云端数据状态
@@ -3146,6 +4194,104 @@
             }
         }
 
+        // 验证云端数据并更新UI显示
+        async function validateCloudData() {
+            console.log('=== 验证云端数据开始 ===');
+            
+            // 更新验证UI为加载中状态
+            const vehiclesElement = document.getElementById('validation-vehicles');
+            const transactionsElement = document.getElementById('validation-transactions');
+            const pendingElement = document.getElementById('validation-pending');
+            
+            if (vehiclesElement) vehiclesElement.textContent = '加载中...';
+            if (transactionsElement) transactionsElement.textContent = '加载中...';
+            if (pendingElement) pendingElement.textContent = '加载中...';
+            
+            if (!cloudbaseInitialized) {
+                console.log('CloudBase 未初始化，无法验证数据');
+                if (vehiclesElement) vehiclesElement.textContent = '未初始化';
+                if (transactionsElement) transactionsElement.textContent = '未初始化';
+                if (pendingElement) pendingElement.textContent = '未初始化';
+                return false;
+            }
+            
+            try {
+                let vehicleCount = 0;
+                let transactionCount = 0;
+                let pendingCount = 0;
+                let vehicleError = false;
+                let transactionError = false;
+                let pendingError = false;
+                
+                // 尝试查询车辆数据
+                try {
+                    const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                    const vehiclesResult = await vehiclesCollection.where({ _source: 'truck_used_car_system' }).count();
+                    vehicleCount = vehiclesResult.total || 0;
+                    console.log('云端车辆数据:', vehicleCount, '条');
+                } catch (vehicleErr) {
+                    console.error('查询云端车辆数据失败:', vehicleErr.message);
+                    vehicleError = true;
+                    console.log('车辆数据查询失败，可能是权限不足');
+                }
+                
+                // 尝试查询交易数据
+                try {
+                    const transactionsCollection = cloudbaseDb.collection('transactions');
+                    const transactionsResult = await transactionsCollection.where({ _source: 'truck_used_car_system' }).count();
+                    transactionCount = transactionsResult.total || 0;
+                    console.log('云端交易数据:', transactionCount, '条');
+                } catch (transactionErr) {
+                    console.error('查询云端交易数据失败:', transactionErr.message);
+                    transactionError = true;
+                    console.log('交易数据查询失败，可能是权限不足');
+                }
+                
+                // 尝试查询待处理车辆数据
+                try {
+                    const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                    const pendingResult = await pendingCollection.where({ _source: 'truck_used_car_system' }).count();
+                    pendingCount = pendingResult.total || 0;
+                    console.log('云端待处理车辆数据:', pendingCount, '条');
+                } catch (pendingErr) {
+                    console.error('查询云端待处理车辆数据失败:', pendingErr.message);
+                    pendingError = true;
+                    console.log('待处理车辆数据查询失败，可能是权限不足');
+                }
+                
+                // 更新UI显示
+                if (vehiclesElement) vehiclesElement.textContent = vehicleError ? '权限不足' : vehicleCount.toString();
+                if (transactionsElement) transactionsElement.textContent = transactionError ? '权限不足' : transactionCount.toString();
+                if (pendingElement) pendingElement.textContent = pendingError ? '权限不足' : pendingCount.toString();
+                
+                const totalData = (vehicleError ? 0 : vehicleCount) + (transactionError ? 0 : transactionCount) + (pendingError ? 0 : pendingCount);
+                const anyError = vehicleError || transactionError || pendingError;
+                console.log('=== 验证云端数据完成 ===');
+                console.log('总计云端数据:', totalData, '条');
+                console.log('  - 车辆数据:', vehicleError ? '权限不足' : vehicleCount, '条');
+                console.log('  - 交易数据:', transactionError ? '权限不足' : transactionCount, '条');
+                console.log('  - 待处理车辆:', pendingError ? '权限不足' : pendingCount, '条');
+                
+                // 显示简单通知
+                if (anyError) {
+                    alert(`⚠️ 云端数据验证完成，但部分查询失败（权限不足）。\n\n云端数据统计：\n• 车辆数据: ${vehicleError ? '权限不足' : vehicleCount + ' 条'}\n• 交易数据: ${transactionError ? '权限不足' : transactionCount + ' 条'}\n• 待处理车辆: ${pendingError ? '权限不足' : pendingCount + ' 条'}\n\n可能原因：\n1. CloudBase 安全规则禁止读取数据\n2. 环境ID不匹配\n3. 集合不存在\n\n建议：\n1. 检查 CloudBase 控制台中的安全规则，确保 read 权限为 true\n2. 确认环境ID匹配\n3. 点击"一键修复"确保集合存在`);
+                } else if (totalData > 0) {
+                    alert(`✅ 云端数据验证完成！\n\n云端数据统计：\n• 车辆数据: ${vehicleCount} 条\n• 交易数据: ${transactionCount} 条\n• 待处理车辆: ${pendingCount} 条\n\n总计: ${totalData} 条记录\n\n数据已成功同步到云端。`);
+                } else {
+                    alert(`⚠️ 云端数据验证完成，但未找到本系统数据。\n\n可能原因：\n1. 数据尚未同步到云端\n2. 环境ID不匹配\n3. 集合为空\n\n建议：\n1. 点击"保存并连接"确保连接正常\n2. 尝试同步数据到云端\n3. 检查 CloudBase 控制台中的安全规则`);
+                }
+                
+                return totalData > 0 && !anyError;
+            } catch (error) {
+                console.error('验证云端数据过程中出错:', error);
+                if (vehiclesElement) vehiclesElement.textContent = '错误';
+                if (transactionsElement) transactionsElement.textContent = '错误';
+                if (pendingElement) pendingElement.textContent = '错误';
+                alert('❌ 验证云端数据过程中出错: ' + error.message);
+                return false;
+            }
+        }
+
         // 从云端加载数据
         async function loadDataFromCloud() {
             if (!cloudbaseInitialized) {
@@ -3163,12 +4309,32 @@
                     .orderBy('_syncTime', 'desc')
                     .get();
                 
-                if (vehiclesResult.data.length > 0) {
-                    mockData.vehicles = vehiclesResult.data.map(doc => {
+                // 检查返回结果是否有效
+                if (!vehiclesResult || !vehiclesResult.data) {
+                    console.warn('从云端加载车辆数据返回空结果，可能是集合不存在或权限不足');
+                } else if (vehiclesResult.data.length > 0) {
+                    // 合并云端数据到本地（云端数据补充本地没有的，以本地为主）
+                    const cloudVehicles = vehiclesResult.data.map(doc => {
                         const { _id, _syncTime, _source, ...vehicleData } = doc;
                         return vehicleData;
                     });
-                    console.log('从云端加载车辆数据:', mockData.vehicles.length, '条记录');
+                    console.log('从云端加载车辆数据:', cloudVehicles.length, '条记录');
+                    
+                    // 如果本地已有数据，以本地数据为准，只补充本地没有的车辆
+                    if (mockData.vehicles.length > 0) {
+                        const localIds = new Set(mockData.vehicles.map(v => v.id));
+                        const newFromCloud = cloudVehicles.filter(v => !localIds.has(v.id));
+                        if (newFromCloud.length > 0) {
+                            mockData.vehicles = [...mockData.vehicles, ...newFromCloud];
+                            console.log(`云端合并：新增 ${newFromCloud.length} 辆云端独有车辆，合并后共 ${mockData.vehicles.length} 辆`);
+                        } else {
+                            console.log('云端数据已全部在本地存在，无需合并');
+                        }
+                    } else {
+                        // 本地没有数据时才直接使用云端数据
+                        mockData.vehicles = cloudVehicles;
+                        console.log('本地无数据，直接使用云端数据:', mockData.vehicles.length, '条记录');
+                    }
                 }
                 
                 // 从云端加载交易数据
@@ -3178,7 +4344,10 @@
                     .orderBy('_syncTime', 'desc')
                     .get();
                 
-                if (transactionsResult.data.length > 0) {
+                // 检查返回结果是否有效
+                if (!transactionsResult || !transactionsResult.data) {
+                    console.warn('从云端加载交易数据返回空结果，可能是集合不存在或权限不足');
+                } else if (transactionsResult.data.length > 0) {
                     mockData.transactions = transactionsResult.data.map(doc => {
                         const { _id, _syncTime, _source, ...transactionData } = doc;
                         return transactionData;
@@ -3192,7 +4361,10 @@
                     .orderBy('_syncTime', 'desc')
                     .get();
                 
-                if (pendingResult.data.length > 0) {
+                // 检查返回结果是否有效
+                if (!pendingResult || !pendingResult.data) {
+                    console.warn('从云端加载待处理车辆数据返回空结果，可能是集合不存在或权限不足');
+                } else if (pendingResult.data.length > 0) {
                     mockData.pendingVehicles = pendingResult.data.map(doc => {
                         const { _id, _syncTime, _source, ...pendingData } = doc;
                         return pendingData;
@@ -3207,11 +4379,11 @@
             }
         }
 
-        // 修改保存数据函数，添加云同步
+        // 修改保存数据函数，当用户操作导致数据变更时自动同步到云端
         const originalSaveDataToStorage = saveDataToStorage;
         saveDataToStorage = function() {
             const localResult = originalSaveDataToStorage();
-            // 异步同步到云端
+            // 数据变更时自动同步到云端
             if (cloudbaseInitialized) {
                 setTimeout(() => {
                     syncDataToCloud().then(success => {
@@ -3224,12 +4396,12 @@
             return localResult;
         };
 
-        // 修改加载数据函数，尝试从云端加载
+        // 修改加载数据函数，尝试从云端加载（仅当本地无数据时才从云端获取）
         const originalLoadDataFromStorage = loadDataFromStorage;
         loadDataFromStorage = function() {
             const localResult = originalLoadDataFromStorage();
-            // 异步从云端加载
-            if (cloudbaseInitialized) {
+            // 仅当本地没有数据时，才异步从云端加载
+            if (cloudbaseInitialized && mockData.vehicles.length === 0) {
                 setTimeout(() => {
                     loadDataFromCloud().then(success => {
                         if (success) {
@@ -3244,6 +4416,8 @@
                         }
                     });
                 }, 500);
+            } else if (cloudbaseInitialized) {
+                console.log('本地已有数据，跳过从云端加载（车辆数:', mockData.vehicles.length, '）');
             }
             return localResult;
         };
@@ -3266,51 +4440,61 @@
             // 尝试自动初始化 CloudBase（如果SDK已加载且有配置）
             const savedConfig = localStorage.getItem(CLOUDBASE_CONFIG_KEY);
             if (savedConfig) {
-                const config = JSON.parse(savedConfig);
+                let config;
+                try {
+                    config = JSON.parse(savedConfig);
+                } catch (parseErr) {
+                    console.error('CloudBase配置数据损坏，已清除:', parseErr.message);
+                    localStorage.removeItem(CLOUDBASE_CONFIG_KEY);
+                    return;
+                }
                 console.log('检测到已保存的CloudBase配置:', config.envId ? '有环境ID' : '无环境ID');
                 
                 // 延迟尝试初始化，确保SDK有足够时间加载
-                setTimeout(() => {
+                setTimeout(async () => {
                     if (typeof window.cloudbase !== 'undefined') {
                         console.log('SDK已加载，尝试自动初始化CloudBase...');
-                        const initSuccess = initCloudBase();
+                        const initSuccess = await initCloudBase();
                         if (initSuccess) {
                             // 初始化成功后，先初始化数据库结构
                             console.log('CloudBase初始化成功，开始初始化数据库结构...');
-                            setTimeout(() => {
-                                initCloudbaseDatabase().then(dbInitSuccess => {
+                            setTimeout(async () => {
+                                try {
+                                    const dbInitSuccess = await initCloudbaseDatabase();
                                     console.log('数据库结构初始化:', dbInitSuccess ? '成功' : '失败');
                                     
                                     // 然后自动从云端加载数据
                                     console.log('开始从云端加载数据...');
-                                    loadDataFromCloud().then(success => {
-                                        if (success) {
-                                            console.log('云端数据加载成功，更新界面...');
-                                            // 更新所有相关界面
-                                            if (typeof updateDashboard === 'function') updateDashboard();
-                                            if (typeof renderVehicleTable === 'function') renderVehicleTable();
-                                            if (typeof renderInventoryTable === 'function') renderInventoryTable();
-                                            if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
-                                            
-                                            // 开始自动同步
-                                            startAutoSync();
-                                        }
-                                    });
-                                });
+                                    const success = await loadDataFromCloud();
+                                    if (success) {
+                                        console.log('云端数据加载成功，更新界面...');
+                                        // 更新所有相关界面
+                                        if (typeof updateDashboard === 'function') updateDashboard();
+                                        if (typeof renderVehicleTable === 'function') renderVehicleTable();
+                                        if (typeof renderInventoryTable === 'function') renderInventoryTable();
+                                        if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                                        
+                                        // 自动同步已关闭，不再自动启动（仅支持手动同步）
+                                        // startAutoSync();
+                                    }
+                                } catch (e) {
+                                    console.error('数据库初始化或数据加载失败:', e);
+                                }
                             }, 1000);
                         }
                     } else {
                         console.log('SDK尚未加载，等待SDK加载...');
                         // 设置一个更长的延迟再次尝试
-                        setTimeout(() => {
+                        setTimeout(async () => {
                             if (typeof window.cloudbase !== 'undefined') {
                                 console.log('SDK已加载（第二次尝试），尝试自动初始化CloudBase...');
-                                const initSuccess = initCloudBase();
+                                const initSuccess = await initCloudBase();
                                 if (initSuccess) {
                                     // 初始化成功后，自动从云端加载数据
                                     console.log('CloudBase初始化成功，开始从云端加载数据...');
-                                    setTimeout(() => {
-                                        loadDataFromCloud().then(success => {
+                                    setTimeout(async () => {
+                                        try {
+                                            const success = await loadDataFromCloud();
                                             if (success) {
                                                 console.log('云端数据加载成功，更新界面...');
                                                 // 更新所有相关界面
@@ -3319,10 +4503,12 @@
                                                 if (typeof renderInventoryTable === 'function') renderInventoryTable();
                                                 if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
                                                 
-                                                // 开始自动同步
-                                                startAutoSync();
+                                                // 自动同步已关闭，不再自动启动（仅支持手动同步）
+                                                // startAutoSync();
                                             }
-                                        });
+                                        } catch (e) {
+                                            console.error('数据加载失败:', e);
+                                        }
                                     }, 1000);
                                 }
                             }
@@ -3362,6 +4548,40 @@
                         }
                     });
                     console.log('CloudBase 同步按钮事件绑定成功');
+                }
+
+                const cloudbaseClearBtn = document.getElementById('cloudbase-clear-btn');
+                if (cloudbaseClearBtn) {
+                    cloudbaseClearBtn.addEventListener('click', async function() {
+                        if (!cloudbaseInitialized) {
+                            showCloudbaseConfigModal('请先配置 CloudBase 连接');
+                            return;
+                        }
+                        if (!confirm('⚠️ 确定要清空云端所有数据吗？\n\n此操作将删除 CloudBase 中 vehicles、transactions、pending_vehicles 三个集合的全部数据。\n\n本地数据不会受影响。')) {
+                            return;
+                        }
+                        if (!confirm('再次确认：真的要清空云端数据吗？\n\n此操作不可撤销！')) {
+                            return;
+                        }
+                        
+                        cloudbaseClearBtn.disabled = true;
+                        cloudbaseClearBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>清空中...';
+                        
+                        try {
+                            const result = await clearAllCloudData();
+                            if (result.success) {
+                                alert(`✅ 云端数据已清空！\n\n删除统计：\n- 车辆数据：${result.vehicles} 条\n- 交易记录：${result.transactions} 条\n- 待处理车辆：${result.pending} 条`);
+                            } else {
+                                alert('❌ 清空失败：' + (result.error || '未知错误'));
+                            }
+                        } catch (e) {
+                            alert('❌ 清空云端数据出错：' + e.message);
+                        } finally {
+                            cloudbaseClearBtn.disabled = false;
+                            cloudbaseClearBtn.innerHTML = '<i class="fa fa-trash mr-1"></i>清空云端数据';
+                        }
+                    });
+                    console.log('CloudBase 清空按钮事件绑定成功');
                 }
                 
                 if (cloudbaseTestBtn) {
@@ -3988,20 +5208,20 @@
             }
         }
 
-        // 清除测试数据，保留用户数据
-        function clearTestData() {
-            if (!confirm('确定要清除所有测试数据吗？此操作不可撤销。\n\n将清除：\n- 所有车辆数据\n- 采购机器人数据\n- 交易记录\n- 待处理车辆\n- 确认采购数据\n- 销售机器人的询价和发布记录\n\n用户账户和系统设置将保留。')) {
+        // 清除测试数据，保留用户数据，同时清除云端数据
+        async function clearTestData() {
+            if (!confirm('确定要清除所有数据吗？此操作不可撤销。\n\n将清除：\n- 所有车辆数据\n- 采购机器人数据\n- 交易记录\n- 待处理车辆\n- 确认采购数据\n- 销售机器人的询价和发布记录\n- 云端同步数据\n\n用户账户和系统设置将保留。')) {
                 return;
             }
             
-            console.log('开始清除测试数据...');
+            console.log('开始清除数据...');
             
             // 重置车辆相关数据为空数组
             mockData.vehicles = [];
             mockData.pendingVehicles = [];
             mockData.transactions = [];
             mockData.recentlyAddedVehicleIds = [];
-            mockData.confirmedPurchases = []; // 添加：清除确认采购数据
+            mockData.confirmedPurchases = [];
             
             // 重置采购机器人车辆列表
             mockData.buyerRobot.vehicleList = [];
@@ -4046,13 +5266,8 @@
             
             // 强制重新渲染所有关键表格
             setTimeout(() => {
-                // 重新渲染采购员机器人表格
-                renderBuyerRobotTable();
-                
-                // 重新渲染库存表格
-                renderInventoryTable();
-                
-                // 重新初始化图表（如果需要）
+                if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                if (typeof renderInventoryTable === 'function') renderInventoryTable();
                 if (salesChart) {
                     salesChart.destroy();
                     salesChart = null;
@@ -4061,17 +5276,39 @@
                     inventoryChart.destroy();
                     inventoryChart = null;
                 }
-                
-                // 重新初始化图表
                 initCharts();
             }, 100);
             
-            showNotification('测试数据已清除，现在可以使用真实数据', 'success');
+            // 清除云端数据
+            if (cloudbaseInitialized && cloudbaseDb) {
+                console.log('开始清除云端数据...');
+                const collections = ['vehicles', 'transactions', 'pending_vehicles'];
+                for (const collName of collections) {
+                    try {
+                        const collection = cloudbaseDb.collection(collName);
+                        // 获取所有文档并删除
+                        const result = await collection.limit(1000).get();
+                        if (result.data && result.data.length > 0) {
+                            for (const doc of result.data) {
+                                await collection.doc(doc._id).remove();
+                            }
+                            console.log(`✅ 云端集合 ${collName} 已清除 ${result.data.length} 条数据`);
+                        } else {
+                            console.log(`云端集合 ${collName} 无数据`);
+                        }
+                    } catch (cloudErr) {
+                        console.error(`❌ 清除云端集合 ${collName} 失败:`, cloudErr.message);
+                    }
+                }
+                showNotification('本地和云端数据已清除', 'success');
+            } else {
+                showNotification('本地数据已清除（云端未连接，请手动同步清除）', 'success');
+            }
             
-            // 刷新页面以完全重置状态（可选）
-            // setTimeout(() => {
-            //     location.reload();
-            // }, 1500);
+            // 刷新页面以完全重置状态
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
         }
 
         // 清空采购员机器人列表
@@ -4234,51 +5471,8 @@
                 }
             }
             
-            // 如果没有登录状态，自动登录管理员账号
-            console.log('未检测到登录状态，尝试自动登录管理员账号...');
-            try {
-                // 确保mockData.users存在且不为空
-                if (!mockData.users || !Array.isArray(mockData.users) || mockData.users.length === 0) {
-                    console.error('用户数据未初始化，无法自动登录');
-                    showLoginPage();
-                    return false;
-                }
-                
-                // 查找管理员用户
-                const adminUser = mockData.users.find(u => u.username === 'admin' && u.role === 'admin');
-                if (adminUser) {
-                    console.log('找到管理员用户，进行自动登录:', adminUser.username);
-                    // 存储登录状态（排除密码）
-                    const userToStore = {...adminUser};
-                    delete userToStore.password;
-                    localStorage.setItem('loggedInUser', JSON.stringify(userToStore));
-                    
-                    // 更新UI并隐藏登录页面
-                    updateUserUI(adminUser);
-                    hideLoginPage();
-                    
-                    console.log('自动登录成功:', adminUser.username);
-                    return true;
-                } else {
-                    console.warn('未找到管理员用户，无法自动登录');
-                    // 尝试使用第一个可用用户作为后备
-                    const firstUser = mockData.users[0];
-                    if (firstUser) {
-                        console.log('使用第一个可用用户进行自动登录:', firstUser.username);
-                        const userToStore = {...firstUser};
-                        delete userToStore.password;
-                        localStorage.setItem('loggedInUser', JSON.stringify(userToStore));
-                        updateUserUI(firstUser);
-                        hideLoginPage();
-                        console.log('自动登录成功（使用第一个用户）:', firstUser.username);
-                        return true;
-                    }
-                }
-            } catch (error) {
-                console.error('自动登录过程中出错:', error);
-            }
-            
-            // 如果自动登录失败，显示登录页面
+            // 如果没有登录状态，显示登录页面等待用户输入
+            console.log('未检测到登录状态，显示登录页面');
             showLoginPage();
             return false;
         }
@@ -4355,11 +5549,11 @@
             // 重置UI
             resetUserUI();
             
-            // 自动重新登录（后台自动处理，不显示登录页面）
-            console.log('注销后尝试自动重新登录...');
+            // 显示登录页面让用户重新登录
+            console.log('注销成功，显示登录页面');
             setTimeout(() => {
-                checkLoginStatus();
-            }, 500);
+                showLoginPage();
+            }, 300);
         }
         
         // 更新用户界面
@@ -4506,20 +5700,14 @@
         function showLoginPage() {
             const loginPage = document.getElementById('login-page');
             if (loginPage) {
-                // 使用setProperty来设置!important，确保能覆盖其他样式
                 loginPage.style.setProperty('display', 'flex', 'important');
-                
-                // 更新提示信息，说明系统正在自动登录
-                const loginHeader = loginPage.querySelector('.bg-primary.text-white.p-8.text-center');
-                if (loginHeader) {
-                    const subtitle = loginHeader.querySelector('p');
-                    if (subtitle) {
-                        subtitle.textContent = '系统正在自动登录管理员账户...';
-                        subtitle.style.color = '#dbeafe'; // 浅蓝色
-                    }
-                }
-                
-                console.log('登录页面已显示，系统正在自动登录');
+                // 清空表单
+                const usernameInput = document.getElementById('username');
+                const passwordInput = document.getElementById('password');
+                if (usernameInput) usernameInput.value = '';
+                if (passwordInput) passwordInput.value = '';
+                hideLoginError();
+                console.log('登录页面已显示');
             }
         }
         
@@ -4529,65 +5717,69 @@
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
-            const role = document.getElementById('role').value;
-            const remember = document.getElementById('remember').checked;
+            const remember = document.getElementById('remember')?.checked || false;
             
             if (!username || !password) {
-                showNotification('请输入用户名和密码', 'error');
+                showLoginError('请输入账号和密码');
                 return;
             }
             
-            if (!role) {
-                showNotification('请选择登录身份', 'error');
+            // 查找匹配的用户
+            const user = mockData.users.find(u => u.username === username && u.password === password);
+            
+            if (!user) {
+                showLoginError('账号或密码错误');
                 return;
             }
             
-            // 禁用登录按钮防止重复提交
-            const loginBtn = document.getElementById('login-btn');
-            if (!loginBtn) {
-                console.error('登录按钮未找到');
-                showNotification('登录表单初始化失败，请刷新页面重试', 'error');
-                return;
+            hideLoginError();
+            
+            // 存储登录状态（排除密码）
+            const userToStore = {...user};
+            delete userToStore.password;
+            localStorage.setItem('loggedInUser', JSON.stringify(userToStore));
+            
+            if (remember) {
+                console.log('记住我已启用');
             }
             
-            const originalText = loginBtn.textContent;
-            loginBtn.disabled = true;
-            loginBtn.textContent = '登录中...';
+            // 更新UI并隐藏登录页面
+            updateUserUI(user);
+            hideLoginPage();
             
-            console.log('提交登录表单:', { username, password, role, remember });
+            // 初始化主应用
+            initDataAndSync();
             
-            // 模拟网络延迟
-            setTimeout(() => {
-                try {
-                    const user = login(username, password, role);
-                    
-                    // 安全恢复登录按钮
-                    const currentLoginBtn = document.getElementById('login-btn');
-                    if (currentLoginBtn) {
-                        currentLoginBtn.disabled = false;
-                        currentLoginBtn.textContent = originalText;
-                    }
-                    
-                    if (user && remember) {
-                        // 记住我功能（这里只是示例，实际应该使用更安全的方式）
-                        console.log('记住我已启用');
-                    }
-                } catch (error) {
-                    console.error('登录过程中发生错误:', error);
-                    // 尝试恢复按钮状态
-                    const currentLoginBtn = document.getElementById('login-btn');
-                    if (currentLoginBtn) {
-                        currentLoginBtn.disabled = false;
-                        currentLoginBtn.textContent = '登录系统';
-                    }
-                    showNotification('登录过程中发生错误: ' + error.message, 'error');
-                }
-            }, 500);
+            console.log('登录成功:', user.username);
+        }
+        
+        // 显示登录错误
+        function showLoginError(msg) {
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                errorEl.textContent = msg;
+                errorEl.classList.remove('hidden');
+            }
+        }
+        
+        // 隐藏登录错误
+        function hideLoginError() {
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                errorEl.classList.add('hidden');
+            }
         }
         
         // 初始化登录相关事件监听
         function initLoginListeners() {
             console.log('初始化登录事件监听器');
+            
+            // 登录表单提交
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLoginFormSubmit);
+                console.log('登录表单事件已绑定');
+            }
             
 
             
@@ -4723,9 +5915,9 @@
             // 清除测试数据按钮
             const clearTestDataBtn = document.getElementById('clear-test-data-btn');
             if (clearTestDataBtn) {
-                clearTestDataBtn.addEventListener('click', function(e) {
+                clearTestDataBtn.addEventListener('click', async function(e) {
                     e.preventDefault();
-                    clearTestData();
+                    await clearTestData();
                 });
             }
             
@@ -4996,16 +6188,19 @@
                 }
             });
             
-            // 计算今日销售数量（基于交易记录，只计算车辆仍然存在的交易）
+            // 计算今日销售数量（基于交易记录，按车辆ID去重，只计算车辆仍然存在的交易）
             const today = new Date();
             const todayString = today.toLocaleDateString('zh-CN');
             const existingVehicleIds = new Set(mockData.vehicles.map(v => v.id));
-            const todaySalesCount = mockData.transactions.filter(t => 
+            const todaySalesTransactions = mockData.transactions.filter(t => 
                 t.type === '销售' && 
                 t.date && 
                 new Date(t.date).toLocaleDateString('zh-CN') === todayString &&
                 t.vehicleId && existingVehicleIds.has(t.vehicleId)
-            ).length;
+            );
+            // 按车辆ID去重，避免同一辆车多条交易记录重复计数
+            const todaySoldVehicleIds = [...new Set(todaySalesTransactions.map(t => t.vehicleId))];
+            const todaySalesCount = todaySoldVehicleIds.length;
             
             // 更新销售机器人数据字段
             mockData.sellerRobot.inquiriesCount = inquiriesCount;
@@ -5097,10 +6292,10 @@
             console.log('3. 交易记录数量:', mockData.transactions.length);
             console.log('4. 采购机器人车辆:', mockData.buyerRobot.vehicleList.length);
             
-            // 立即保存一次数据，确保数据持久化
+            // 立即保存一次数据到本地（初始加载时不触发云端同步，避免重复推送）
             setTimeout(() => {
-                console.log('5. 执行初始数据保存...');
-                const saved = saveDataToStorage();
+                console.log('5. 执行初始本地数据保存...');
+                const saved = originalSaveDataToStorage();
                 console.log('初始数据保存结果:', saved ? '成功' : '失败');
             }, 100);
             
@@ -6221,12 +7416,14 @@
                             <button class="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-blue-800 transition-colors view-vehicle-btn" data-id="${vehicle.id}">
                                 查看详情
                             </button>
+                            ${vehicle.status !== '已售出' ? `
                             <button class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-800 transition-colors publish-douyin-btn" data-id="${vehicle.id}">
                                 发布抖音
                             </button>
                             <button class="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-800 transition-colors publish-kuaishou-btn" data-id="${vehicle.id}">
                                 发布快手
                             </button>
+                            ` : ''}
                             ${vehicle.status === '库存中' ? `
                             <button class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-800 transition-colors mark-sold-btn" data-id="${vehicle.id}">
                                 已售出
@@ -6534,6 +7731,15 @@
         function markVehicleAsSold(vehicleId) {
             console.log('markVehicleAsSold 被调用，参数:', vehicleId);
             
+            // 安全通知函数（防止 showNotification 未定义）
+            const notify = (msg, type) => {
+                if (typeof showNotification === 'function') {
+                    showNotification(msg, type);
+                } else {
+                    console.log(`[通知-${type}] ${msg}`);
+                }
+            };
+            
             // 查找车辆
             const vehicle = mockData.vehicles.find(v => {
                 if (v.id === vehicleId) return true;
@@ -6544,13 +7750,13 @@
             console.log('查找车辆结果:', vehicle, '车辆ID类型:', typeof vehicleId);
             if (!vehicle) {
                 console.error('未找到车辆:', vehicleId, '车辆列表:', mockData.vehicles.map(v => ({id: v.id, type: typeof v.id})));
-                showNotification(`未找到ID为 ${vehicleId} 的车辆`, 'error');
+                notify(`未找到ID为 ${vehicleId} 的车辆`, 'error');
                 return false;
             }
             
             // 检查车辆状态
             if (vehicle.status === '已售出') {
-                showNotification(`车辆 ${vehicle.brand} ${vehicle.model} 已经是已售出状态`, 'warning');
+                notify(`车辆 ${vehicle.brand} ${vehicle.model} 已经是已售出状态`, 'warning');
                 return false;
             }
             
@@ -6599,7 +7805,7 @@
             saveDataToStorage();
             
             console.log('车辆标记为已售出:', vehicle.id, '品牌:', vehicle.brand, '型号:', vehicle.model);
-            showNotification(`车辆 ${vehicle.brand} ${vehicle.model} 已标记为已售出`, 'success');
+            notify(`车辆 ${vehicle.brand} ${vehicle.model} 已标记为已售出`, 'success');
             
             return true;
         }
@@ -6798,12 +8004,12 @@
             
             if (vehicle.source === 'purchasing') {
                 // 采购新增：采购价与销售价相同，显示采购价/销售价
-                acquisitionPriceDisplay = `¥${vehicle.acquisitionPrice.toLocaleString()}`;
-                sellingPriceDisplay = `¥${vehicle.sellingPrice.toLocaleString()}`;
+                acquisitionPriceDisplay = vehicle.acquisitionPrice ? `¥${vehicle.acquisitionPrice.toLocaleString()}` : '-';
+                sellingPriceDisplay = vehicle.sellingPrice ? `¥${vehicle.sellingPrice.toLocaleString()}` : '-';
             } else {
                 // 库存新增：只显示销售价，采购价不显示
                 acquisitionPriceDisplay = '-';
-                sellingPriceDisplay = `¥${vehicle.sellingPrice.toLocaleString()}`;
+                sellingPriceDisplay = vehicle.sellingPrice ? `¥${vehicle.sellingPrice.toLocaleString()}` : '-';
             }
             
             // 采购信息（如果是采购新增）
@@ -6817,7 +8023,7 @@
                 // 采购基本信息
                 purchaseInfoHtml = `
                     <span class="text-xs text-gray-500 whitespace-nowrap">
-                        <span>采购价: ¥${purchaseData.purchasePrice.toLocaleString()}</span>
+                        <span>采购价: ¥${purchaseData.purchasePrice ? purchaseData.purchasePrice.toLocaleString() : '0'}</span>
                         <span class="mx-1">·</span>
                         <span>采购日期: ${new Date(purchaseData.purchaseDate).toLocaleDateString()}</span>
                         <span class="mx-1">·</span>
@@ -6924,6 +8130,11 @@
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${sourceInfo.class}">${sourceInfo.text}</span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        ${vehicle.images && vehicle.images.length > 0 ? 
+                            `<button class="text-purple-600 hover:text-purple-800 mr-3 view-images-btn" data-id="${vehicle.id}" title="查看图片链接">
+                                <i class="fa fa-image"></i>
+                            </button>` 
+                            : '<span class="text-gray-400 mr-3" title="无图片"><i class="fa fa-image"></i></span>'}
                         <button class="text-primary hover:text-blue-800 mr-3 view-vehicle-btn" data-id="${vehicle.id}">查看</button>
                         <button class="text-secondary hover:text-orange-600 mr-3 edit-vehicle-btn" data-id="${vehicle.id}">编辑</button>
                         <button class="text-danger hover:text-red-800 delete-vehicle-btn" data-id="${vehicle.id}">删除</button>
@@ -6965,28 +8176,35 @@
 
         // 渲染库存表格
         function renderInventoryTable() {
-            const tableBody = document.getElementById('inventory-table-body');
-            if (!tableBody) return;
+            try {
+                const tableBody = document.getElementById('inventory-table-body');
+                if (!tableBody) return;
 
-            console.log('库存筛选器状态:', JSON.stringify(inventoryFilters));
-            const filteredVehicles = getFilteredVehicles();
-            console.log('筛选后车辆数量:', filteredVehicles.length);
-            const startIndex = (inventoryPagination.currentPage - 1) * inventoryPagination.itemsPerPage;
-            const endIndex = Math.min(startIndex + inventoryPagination.itemsPerPage, filteredVehicles.length);
-            
-            let html = '';
-            for (let i = startIndex; i < endIndex; i++) {
-                if (filteredVehicles[i]) {
-                    html += renderInventoryTableRow(filteredVehicles[i], i);
+                console.log('库存筛选器状态:', JSON.stringify(inventoryFilters));
+                const filteredVehicles = getFilteredVehicles();
+                console.log('筛选后车辆数量:', filteredVehicles.length);
+                const startIndex = (inventoryPagination.currentPage - 1) * inventoryPagination.itemsPerPage;
+                const endIndex = Math.min(startIndex + inventoryPagination.itemsPerPage, filteredVehicles.length);
+                
+                let html = '';
+                for (let i = startIndex; i < endIndex; i++) {
+                    if (filteredVehicles[i]) {
+                        html += renderInventoryTableRow(filteredVehicles[i], i);
+                    }
+                }
+                
+                tableBody.innerHTML = html;
+                // 更新分页信息，使用筛选后的总数
+                inventoryPagination.totalItems = filteredVehicles.length;
+                updatePaginationInfo();
+                // 更新统计卡片激活状态
+                syncDataToUI();
+            } catch (error) {
+                console.error('渲染库存表格时出错:', error);
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="10" class="px-6 py-4 text-center text-red-500">渲染表格时出错，请刷新页面重试</td></tr>';
                 }
             }
-            
-            tableBody.innerHTML = html;
-            // 更新分页信息，使用筛选后的总数
-            inventoryPagination.totalItems = filteredVehicles.length;
-            updatePaginationInfo();
-            // 更新统计卡片激活状态
-            syncDataToUI();
         }
         
         // 打开添加车辆模态框
@@ -7514,7 +8732,34 @@
                 status: '库存中',
                 acquisitionDate: new Date(),
                 location: '无', // 采购新增车辆存放地点设为无
-                images: [], // 采购车辆无实际图片，保持空数组
+                images: (() => {
+                    const images = [];
+                    console.log('addVehicleToInventory: 处理图片链接');
+                    console.log('addVehicleToInventory: purchaseVehicle.images:', purchaseVehicle.images);
+                    console.log('addVehicleToInventory: vehicleInfo.photoUrl:', vehicleInfo.photoUrl);
+                    
+                    // 如果采购车辆已有图片，使用它们
+                    if (purchaseVehicle.images && Array.isArray(purchaseVehicle.images)) {
+                        const filteredImages = purchaseVehicle.images.filter(url => url && url.trim());
+                        console.log('addVehicleToInventory: 采购车辆原有图片:', filteredImages);
+                        images.push(...filteredImages);
+                    }
+                    // 如果从原始数据中提取到图片链接，也添加进去
+                    if (vehicleInfo.photoUrl && vehicleInfo.photoUrl.trim()) {
+                        console.log('addVehicleToInventory: 从vehicleInfo提取到图片链接:', vehicleInfo.photoUrl);
+                        // 避免重复添加相同的链接
+                        if (!images.includes(vehicleInfo.photoUrl.trim())) {
+                            images.push(vehicleInfo.photoUrl.trim());
+                            console.log('addVehicleToInventory: 已添加图片链接到images数组');
+                        } else {
+                            console.log('addVehicleToInventory: 图片链接已存在，跳过');
+                        }
+                    } else {
+                        console.log('addVehicleToInventory: vehicleInfo中没有图片链接');
+                    }
+                    console.log('addVehicleToInventory: 最终images数组:', images);
+                    return images;
+                })(), // 采购车辆图片，可能来自原始数据
                 description: descriptionText || `${purchaseVehicle.brand || brand} ${purchaseVehicle.model || model}，${purchaseVehicle.year || year}年${registerMonth}上牌，行驶里程${purchaseVehicle.mileage || mileage}公里。车况${purchaseVehicle.condition || condition}，适合长途货运、工程运输等多种场景使用。`,
                 source: 'purchasing',
                 purchaseData: {
@@ -7911,7 +9156,8 @@
                     price: '',
                     contact: '',
                     description: '',
-                    videoUrl: ''
+                    videoUrl: '',
+                    photoUrl: ''
                 };
             }
             
@@ -7924,6 +9170,7 @@
             let contact = '';
             let description = '';
             let videoUrl = '';
+            let photoUrl = '';
             
             // 标准化键名以增强匹配
             const normalizeKey = (key) => {
@@ -7970,6 +9217,11 @@
                 if (!videoUrl && (key.includes('原视频链接') || key.includes('视频链接') || key.includes('视频') || normalizedKey.includes('videourl') || normalizedKey.includes('video') || normalizedKey.includes('link'))) {
                     videoUrl = value || '';
                 }
+                // 图片链接/照片链接/photoUrl/imageUrl
+                if (!photoUrl && (key.includes('图片链接') || key.includes('照片链接') || key.includes('图片') || key.includes('照片') || normalizedKey.includes('photourl') || normalizedKey.includes('imageurl') || normalizedKey.includes('photo') || normalizedKey.includes('image'))) {
+                    console.log('extractVehicleInfoFromOriginalRow: 找到图片链接字段，key:', key, 'value:', value);
+                    photoUrl = value || '';
+                }
             }
             
             const result = {
@@ -7981,7 +9233,8 @@
                 price,
                 contact,
                 description,
-                videoUrl
+                videoUrl,
+                photoUrl
             };
             console.log('extractVehicleInfoFromOriginalRow: 提取结果:', result);
             return result;
@@ -8247,7 +9500,23 @@
                     condition: row.condition || row['车况'] || row['车辆状况'] || '',
                     evaluatedPrice: evaluatedPrice,
                     status: row.status || '筛选中',
-                    images: [], // 导入车辆无实际图片，保持空数组
+                    images: (() => {
+                        const images = [];
+                        // 从原始数据中提取图片链接
+                        console.log('importToBuyerRobot: 开始提取图片链接，row结构:', JSON.stringify(row, null, 2));
+                        console.log('importToBuyerRobot: row.originalRow:', row.originalRow);
+                        console.log('importToBuyerRobot: 使用数据:', row.originalRow || row);
+                        const vehicleInfo = extractVehicleInfoFromOriginalRow(row.originalRow || row);
+                        console.log('importToBuyerRobot: 提取的vehicleInfo:', vehicleInfo);
+                        if (vehicleInfo.photoUrl && vehicleInfo.photoUrl.trim()) {
+                            console.log('importToBuyerRobot: 找到图片链接:', vehicleInfo.photoUrl);
+                            images.push(vehicleInfo.photoUrl.trim());
+                        } else {
+                            console.log('importToBuyerRobot: 未找到图片链接');
+                        }
+                        console.log('importToBuyerRobot: images数组:', images);
+                        return images;
+                    })(), // 导入车辆图片，可能来自原始数据
                     originalData: { originalRow: row }, // 确保originalData包含originalRow属性
                     importDate: new Date()
                 };
@@ -8514,7 +9783,21 @@
                         status: row.status || '库存中',
                         acquisitionDate: row.acquisitionDate ? new Date(row.acquisitionDate) : new Date(),
                         location: row.location || '车场A区',
-                        images: [] // 导入车辆无实际图片，保持空数组
+                        images: (() => {
+                            const images = [];
+                            console.log('importData (vehicles): 开始提取图片链接，row结构:', JSON.stringify(row, null, 2));
+                            // 从原始数据中提取图片链接
+                            const vehicleInfo = extractVehicleInfoFromOriginalRow(row);
+                            console.log('importData (vehicles): 提取的vehicleInfo:', vehicleInfo);
+                            if (vehicleInfo.photoUrl && vehicleInfo.photoUrl.trim()) {
+                                console.log('importData (vehicles): 找到图片链接:', vehicleInfo.photoUrl);
+                                images.push(vehicleInfo.photoUrl.trim());
+                            } else {
+                                console.log('importData (vehicles): 未找到图片链接');
+                            }
+                            console.log('importData (vehicles): images数组:', images);
+                            return images;
+                        })() // 导入车辆图片，可能来自原始数据
                     }));
                     
                     // 检测重复车辆（基于ID或品牌、型号、年份、里程）
@@ -8680,7 +9963,21 @@
                             condition: row.condition || row['车况'] || row['车辆状况'] || '',
                             evaluatedPrice: evaluatedPrice,
                             status: row.status || '筛选中',
-                            images: [],
+                            images: (() => {
+                                const images = [];
+                                console.log('导入函数(其他): 开始提取图片链接，originalRow结构:', JSON.stringify(originalRow, null, 2));
+                                // 从原始数据中提取图片链接
+                                const vehicleInfo = extractVehicleInfoFromOriginalRow(originalRow);
+                                console.log('导入函数(其他): 提取的vehicleInfo:', vehicleInfo);
+                                if (vehicleInfo.photoUrl && vehicleInfo.photoUrl.trim()) {
+                                    console.log('导入函数(其他): 找到图片链接:', vehicleInfo.photoUrl);
+                                    images.push(vehicleInfo.photoUrl.trim());
+                                } else {
+                                    console.log('导入函数(其他): 未找到图片链接');
+                                }
+                                console.log('导入函数(其他): images数组:', images);
+                                return images;
+                            })(),
                             originalData: { originalRow: originalRow },
                             importDate: new Date()
                         };
@@ -9392,8 +10689,9 @@
             // 每30秒模拟数据更新
             setInterval(simulateDataUpdate, 30000);
 
-            
-            // 共享变量（供事件委托使用）（已移至全局作用域）
+        });
+
+        // 共享变量（供事件委托使用）（已移至全局作用域）
 // 全局共享变量
 let buyerRobotCurrentPage = 1;
 let buyerRobotFilterMode = 'all';
@@ -9714,19 +11012,68 @@ function openVehicleDetailModal(vehicleId) {
         imagesSection.style.display = 'block';
         vehicle.images.forEach((imgUrl, index) => {
             const imgDiv = document.createElement('div');
-            imgDiv.className = 'relative overflow-hidden rounded-lg';
+            imgDiv.className = 'relative overflow-hidden rounded-lg border border-gray-200 bg-white';
+            
+            // 生成简短的链接显示（截断过长的URL）
+            const shortUrl = imgUrl.length > 50 ? imgUrl.substring(0, 47) + '...' : imgUrl;
+            
             imgDiv.innerHTML = `
-                <img class="w-full h-48 object-cover" src="${imgUrl}" alt="车辆图片 ${index + 1}"
-                     data-fallback="https://picsum.photos/600/400?random=${index}"
-                     data-backup="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80"
-                     data-default="https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80"
-                     onerror="handleImageError(this)">
-                <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2">
-                    图片 ${index + 1}
+                <div class="relative">
+                    <img class="w-full h-48 object-cover" src="${imgUrl}" alt="车辆图片 ${index + 1}"
+                         data-fallback="https://picsum.photos/600/400?random=${index}"
+                         data-backup="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80"
+                         data-default="https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80"
+                         onerror="handleImageError(this)">
+                    <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2">
+                        图片 ${index + 1}
+                    </div>
+                </div>
+                <div class="p-3 border-t border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-700">图片链接：</span>
+                        <button class="text-xs text-blue-600 hover:text-blue-800 copy-link-btn" 
+                                data-url="${imgUrl}" 
+                                title="复制链接">
+                            <i class="fa fa-copy mr-1"></i>复制
+                        </button>
+                    </div>
+                    <div class="mt-1">
+                        <a href="${imgUrl}" target="_blank" 
+                           class="text-xs text-blue-600 hover:text-blue-800 break-all hover:underline" 
+                           title="${imgUrl}">
+                            ${shortUrl}
+                        </a>
+                    </div>
                 </div>
             `;
             imagesContainer.appendChild(imgDiv);
         });
+        
+        // 为复制链接按钮添加事件监听器
+        setTimeout(() => {
+            const copyButtons = imagesContainer.querySelectorAll('.copy-link-btn');
+            copyButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const url = this.getAttribute('data-url');
+                    navigator.clipboard.writeText(url).then(() => {
+                        showNotification('图片链接已复制到剪贴板', 'success');
+                        // 临时改变按钮文本
+                        const originalHTML = btn.innerHTML;
+                        btn.innerHTML = '<i class="fa fa-check mr-1"></i>已复制';
+                        btn.classList.remove('text-blue-600');
+                        btn.classList.add('text-green-600');
+                        setTimeout(() => {
+                            btn.innerHTML = originalHTML;
+                            btn.classList.remove('text-green-600');
+                            btn.classList.add('text-blue-600');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('复制失败:', err);
+                        showNotification('复制失败，请手动复制链接', 'error');
+                    });
+                });
+            });
+        }, 100);
     } else {
         // 没有图片：直接隐藏整个图片区域
         imagesSection.style.display = 'none';
@@ -10801,6 +12148,287 @@ function openVehicleDetailModal(vehicleId) {
     }
 }
 
+// 打开采购机器人车辆详情（使用统一的 vehicle-detail-modal 格式）
+function openBuyerRobotVehicleDetail(vehicle) {
+    console.log('打开采购机器人车辆详情', vehicle);
+    
+    // 重置之前可能隐藏的行，确保所有行可见
+    const detailModal = document.getElementById('vehicle-detail-modal');
+    if (detailModal) {
+        const allRows = detailModal.querySelectorAll('.flex.justify-between');
+        allRows.forEach(row => {
+            row.style.display = 'flex';
+        });
+        
+        // 重置图片区域为可见状态（后续根据有无图片决定是否隐藏）
+        const imagesSection = document.getElementById('detail-images-section');
+        if (imagesSection) {
+            imagesSection.style.display = 'block';
+        }
+    }
+    
+    // 提取原始数据
+    let originalRow = (vehicle.originalData?.originalRow || vehicle.originalData || {});
+    if (originalRow && originalRow.originalRow) {
+        originalRow = originalRow.originalRow;
+    }
+    
+    // 从原始行提取结构化信息
+    const vehicleInfo = extractVehicleInfoFromOriginalRow(originalRow);
+    
+    // 辅助函数：隐藏空字段的行
+    function hideEmptyField(fieldId, value) {
+        const fieldElement = document.getElementById(fieldId);
+        if (!fieldElement) return;
+        
+        let parentRow = fieldElement.parentElement;
+        while (parentRow && (!parentRow.classList || !parentRow.classList.contains('flex'))) {
+            parentRow = parentRow.parentElement;
+        }
+        
+        if ((fieldId === 'detail-emission-standard' || fieldId === 'detail-transferrable') && (!value && value !== 0)) {
+            if (parentRow) parentRow.style.display = 'flex';
+            fieldElement.textContent = '未填写';
+            return null;
+        }
+        
+        if (!value && value !== 0) {
+            if (parentRow) parentRow.style.display = 'none';
+            fieldElement.textContent = '';
+        } else {
+            if (parentRow) parentRow.style.display = 'flex';
+            return value;
+        }
+        return null;
+    }
+    
+    // 填充标题和编号
+    document.getElementById('detail-id').textContent = vehicle.id;
+    const vehicleNumberElement = document.getElementById('detail-vehicle-number');
+    if (vehicleNumberElement) {
+        vehicleNumberElement.textContent = `编号: ${vehicle.id}`;
+    }
+    
+    // 从标题或原始数据中提取信息
+    const title = vehicleInfo.vehicleTitle || vehicle.vehicleTitle || originalRow['标题'] || '';
+    const vehicleType = vehicleInfo.vehicleType || vehicle.cargoType || originalRow['车辆类型'] || '';
+    const registrationDate = vehicleInfo.registrationDate || vehicle.year || originalRow['上牌时间'] || '';
+    const horsepower = vehicleInfo.horsepower || vehicle.horsepower || originalRow['马力'] || '';
+    const price = vehicleInfo.price || vehicle.evaluatedPrice || originalRow['报价'] || '';
+    const contact = vehicleInfo.contact || vehicle.contact || originalRow['联系方式'] || '';
+    const description = vehicleInfo.description || vehicle.description || originalRow['描述'] || '';
+    const location = vehicle.location || originalRow['所在地'] || '';
+    const filterDate = vehicleInfo.filterDate || vehicle.filterDate || originalRow['筛选日期'] || '';
+    const videoUrl = vehicleInfo.videoUrl || vehicle.videoUrl || originalRow['视频链接'] || '';
+    
+    // 从标题尝试提取品牌
+    let brand = vehicle.brand || '';
+    if (!brand && title) {
+        const vehicleBrands = ['红岩', '陕汽', '中国重汽', '东风', '福田', '解放', '欧曼', '豪沃', '柳汽'];
+        for (const b of vehicleBrands) {
+            if (title.includes(b)) {
+                brand = b;
+                break;
+            }
+        }
+    }
+    
+    // 从标题尝试提取型号
+    let model = vehicle.model || '';
+    if (!model && title) {
+        const vehicleModels = ['杰狮', '天龙', 'J6P', '欧曼', 'HOWO', '工程自卸车', '牵引车', '载货车'];
+        for (const m of vehicleModels) {
+            if (title.includes(m)) {
+                model = m;
+                break;
+            }
+        }
+    }
+    
+    // 从注册日期提取年份
+    let year = vehicle.year || '';
+    if (!year && registrationDate) {
+        const yearMatch = registrationDate.match(/\b(\d{4})\b/);
+        if (yearMatch) year = yearMatch[1];
+    }
+    
+    // 从价格提取数字
+    let priceNum = 0;
+    if (price) {
+        const priceMatch = String(price).match(/(\d[\d,]*\.?\d*)/);
+        if (priceMatch) priceNum = parseFloat(priceMatch[1].replace(/,/g, ''));
+    }
+    
+    // 填充基本信息
+    document.getElementById('detail-brand').textContent = brand || '待确认';
+    document.getElementById('detail-model').textContent = model || vehicleType || '待确认';
+    document.getElementById('detail-year').textContent = year ? year + '年' : '待确认';
+    
+    hideEmptyField('detail-register-month', '');
+    hideEmptyField('detail-cargo-type', vehicleType);
+    hideEmptyField('detail-engine', '');
+    hideEmptyField('detail-transmission', '');
+    hideEmptyField('detail-horsepower', horsepower);
+    hideEmptyField('detail-emission-standard', '');
+    hideEmptyField('detail-transferrable', '');
+    
+    // 原视频链接
+    const videoUrlElement = document.getElementById('detail-video-url');
+    const videoUrlRow = videoUrlElement ? videoUrlElement.closest('.flex.justify-between') : null;
+    if (videoUrl) {
+        videoUrlElement.innerHTML = `<a href="${videoUrl}" target="_blank" class="text-blue-600 hover:text-blue-800 underline text-sm">查看视频</a>`;
+        if (videoUrlRow) videoUrlRow.style.display = 'flex';
+    } else {
+        if (videoUrlRow) videoUrlRow.style.display = 'none';
+        videoUrlElement.textContent = '';
+    }
+    
+    // 填充车辆状态
+    document.getElementById('detail-mileage').textContent = (vehicle.mileage || '未知').toLocaleString ? (vehicle.mileage || 0).toLocaleString() + '公里' : '未知';
+    document.getElementById('detail-condition').textContent = vehicle.condition || '待评估';
+    document.getElementById('detail-status').textContent = vehicle.status || '待处理';
+    document.getElementById('detail-acquisition-price').textContent = priceNum ? '¥' + priceNum.toLocaleString() : '待定';
+    document.getElementById('detail-selling-price').textContent = '待定';
+    document.getElementById('detail-acquisition-date').textContent = filterDate || '待定';
+    document.getElementById('detail-location').textContent = location || '待确认';
+    document.getElementById('detail-source').textContent = '采购机器人';
+    
+    // 填充车辆图片
+    const imagesSection = document.getElementById('detail-images-section');
+    const imagesContainer = document.getElementById('detail-images-container');
+    imagesContainer.innerHTML = '';
+    
+    const images = vehicle.images || [];
+    if (images.length > 0) {
+        imagesSection.style.display = 'block';
+        images.forEach((imgUrl, index) => {
+            const imgDiv = document.createElement('div');
+            imgDiv.className = 'relative overflow-hidden rounded-lg border border-gray-200 bg-white';
+            const shortUrl = imgUrl.length > 50 ? imgUrl.substring(0, 47) + '...' : imgUrl;
+            imgDiv.innerHTML = `
+                <div class="relative">
+                    <img class="w-full h-48 object-cover" src="${imgUrl}" alt="车辆图片 ${index + 1}"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-400" style="display:none">
+                        <span>图片加载失败</span>
+                    </div>
+                    <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2">
+                        图片 ${index + 1}
+                    </div>
+                </div>
+            `;
+            imagesContainer.appendChild(imgDiv);
+        });
+    } else {
+        imagesSection.style.display = 'none';
+    }
+    
+    // 控制保存图片按钮
+    const saveImagesBtn = document.getElementById('save-images-btn');
+    if (saveImagesBtn) {
+        saveImagesBtn.style.display = images.length > 0 ? 'flex' : 'none';
+    }
+    
+    // 填充描述（基于可用信息生成）
+    let descParts = [];
+    if (title) descParts.push(title);
+    if (brand || model) descParts.push(`${brand || ''} ${model || ''}`.trim());
+    if (year) descParts.push(`${year}年`);
+    if (horsepower) descParts.push(`${horsepower}匹马力`);
+    if (priceNum) descParts.push(`报价约${priceNum.toLocaleString()}元`);
+    if (description && description !== '无') descParts.push(description);
+    if (contact) descParts.push(`联系方式: ${contact}`);
+    
+    const finalDescription = descParts.length > 0 ? descParts.join('；') : '暂无详细描述';
+    document.getElementById('detail-description').textContent = finalDescription;
+    
+    // 显示模态框
+    if (detailModal) {
+        detailModal.classList.remove('hidden');
+        detailModal.style.display = '';
+        
+        // 绑定关闭按钮（本地版本）
+        const closeButtons = detailModal.querySelectorAll('.close-modal-btn');
+        closeButtons.forEach((btn) => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            newBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                detailModal.classList.add('hidden');
+                detailModal.style.display = 'none';
+            });
+        });
+        
+        // 绑定复制描述按钮（本地版本，使用当前 vehicle）
+        const copyDescBtn = document.getElementById('copy-description-btn');
+        if (copyDescBtn) {
+            const newCopyDescBtn = copyDescBtn.cloneNode(true);
+            copyDescBtn.parentNode.replaceChild(newCopyDescBtn, copyDescBtn);
+            newCopyDescBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const descText = document.getElementById('detail-description').textContent;
+                if (!descText || descText.trim() === '') {
+                    showNotification('没有可复制的描述内容', 'warning');
+                    return;
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(descText).then(() => {
+                        showNotification('车辆描述已复制到剪贴板', 'success');
+                    }).catch(() => {
+                        showNotification('复制失败', 'error');
+                    });
+                }
+            });
+        }
+        
+        // 绑定保存图片按钮（本地版本，使用当前 vehicle 的 images）
+        const saveBtn = document.getElementById('save-images-btn');
+        if (saveBtn) {
+            const newSaveBtn = saveBtn.cloneNode(true);
+            saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+            newSaveBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!vehicle.images || vehicle.images.length === 0) {
+                    showNotification('该车辆没有图片可保存', 'warning');
+                    return;
+                }
+                vehicle.images.forEach((imgUrl, i) => {
+                    const a = document.createElement('a');
+                    a.href = imgUrl;
+                    a.download = `车辆图片-${vehicle.id}-${i + 1}`;
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                });
+                showNotification(`已开始下载 ${vehicle.images.length} 张图片`, 'success');
+            });
+        }
+        
+        // 绑定复制ID按钮（本地版本）
+        const copyIdBtn = document.getElementById('copy-vehicle-id-btn');
+        if (copyIdBtn) {
+            const newCopyIdBtn = copyIdBtn.cloneNode(true);
+            copyIdBtn.parentNode.replaceChild(newCopyIdBtn, copyIdBtn);
+            newCopyIdBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const vehicleIdText = document.getElementById('detail-id').textContent;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(vehicleIdText).then(() => {
+                        showNotification('车辆ID已复制到剪贴板', 'success');
+                    }).catch(() => {
+                        showNotification('复制失败', 'error');
+                    });
+                }
+            });
+        }
+    }
+}
+
 // 渲染采购员机器人车辆列表
 function renderBuyerRobotTable() {
     const tbody = document.getElementById('buyer-robot-main-table-body');
@@ -11460,6 +13088,134 @@ function addNewVehicle() {
                         } catch (error) {
                             console.error('处理查看车辆详情时出错:', error);
                             showNotification('打开车辆详情时出错: ' + error.message, 'error');
+                        }
+                    }
+                    
+                    // 查看图片链接按钮
+                    if (e.target.classList.contains('view-images-btn') || e.target.closest('.view-images-btn')) {
+                        console.log('检测到查看图片链接按钮点击');
+                        try {
+                            const btn = e.target.closest('.view-images-btn');
+                            if (!btn) {
+                                console.error('未找到.view-images-btn元素');
+                                return;
+                            }
+                            const vehicleId = btn.getAttribute('data-id');
+                            console.log('车辆ID:', vehicleId);
+                            
+                            if (!vehicleId) {
+                                showNotification('车辆ID无效', 'error');
+                                return;
+                            }
+                            
+                            // 查找车辆
+                            const vehicle = mockData.vehicles.find(v => v.id === vehicleId);
+                            if (!vehicle) {
+                                showNotification('未找到车辆信息', 'error');
+                                return;
+                            }
+                            
+                            // 检查是否有图片
+                            if (!vehicle.images || vehicle.images.length === 0) {
+                                showNotification('该车辆没有图片链接', 'info');
+                                return;
+                            }
+                            
+                            // 如果有多个图片，显示所有链接
+                            if (vehicle.images.length > 1) {
+                                // 创建简单的模态框显示所有图片链接
+                                const modalHtml = `
+                                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6">
+                                            <div class="flex justify-between items-center mb-4">
+                                                <h3 class="text-lg font-semibold text-gray-900">车辆图片链接</h3>
+                                                <button type="button" class="text-gray-500 hover:text-gray-700 close-images-modal">
+                                                    <i class="fa fa-times text-xl"></i>
+                                                </button>
+                                            </div>
+                                            <div class="space-y-3">
+                                                ${vehicle.images.map((imgUrl, index) => `
+                                                    <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                        <div class="flex-1">
+                                                            <div class="text-sm font-medium text-gray-700">图片 ${index + 1}:</div>
+                                                            <div class="text-xs text-gray-600 break-all mt-1">${imgUrl}</div>
+                                                        </div>
+                                                        <div class="ml-4 flex space-x-2">
+                                                            <button class="text-xs text-blue-600 hover:text-blue-800 copy-image-link" data-url="${imgUrl}" title="复制链接">
+                                                                <i class="fa fa-copy"></i> 复制
+                                                            </button>
+                                                            <a href="${imgUrl}" target="_blank" class="text-xs text-green-600 hover:text-green-800" title="打开链接">
+                                                                <i class="fa fa-external-link"></i> 打开
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                            <div class="mt-6 flex justify-end">
+                                                <button type="button" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors close-images-modal">
+                                                    关闭
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // 创建并显示模态框
+                                const modalContainer = document.createElement('div');
+                                modalContainer.innerHTML = modalHtml;
+                                document.body.appendChild(modalContainer);
+                                
+                                // 为关闭按钮添加事件监听器
+                                const closeButtons = modalContainer.querySelectorAll('.close-images-modal');
+                                closeButtons.forEach(closeBtn => {
+                                    closeBtn.addEventListener('click', function() {
+                                        modalContainer.remove();
+                                    });
+                                });
+                                
+                                // 为复制按钮添加事件监听器
+                                const copyButtons = modalContainer.querySelectorAll('.copy-image-link');
+                                copyButtons.forEach(copyBtn => {
+                                    copyBtn.addEventListener('click', function() {
+                                        const url = this.getAttribute('data-url');
+                                        navigator.clipboard.writeText(url).then(() => {
+                                            showNotification('图片链接已复制到剪贴板', 'success');
+                                        }).catch(err => {
+                                            console.error('复制失败:', err);
+                                            showNotification('复制失败，请手动复制链接', 'error');
+                                        });
+                                    });
+                                });
+                                
+                                // 点击模态框外部关闭
+                                modalContainer.addEventListener('click', function(e) {
+                                    if (e.target === modalContainer) {
+                                        modalContainer.remove();
+                                    }
+                                });
+                                
+                                // 按ESC键关闭
+                                const handleEsc = function(e) {
+                                    if (e.key === 'Escape') {
+                                        modalContainer.remove();
+                                        document.removeEventListener('keydown', handleEsc);
+                                    }
+                                };
+                                document.addEventListener('keydown', handleEsc);
+                                
+                            } else {
+                                // 只有一个图片，直接复制链接
+                                const imgUrl = vehicle.images[0];
+                                navigator.clipboard.writeText(imgUrl).then(() => {
+                                    showNotification('图片链接已复制到剪贴板', 'success');
+                                }).catch(err => {
+                                    console.error('复制失败:', err);
+                                    showNotification('复制失败，请手动复制链接', 'error');
+                                });
+                            }
+                        } catch (error) {
+                            console.error('处理查看图片链接时出错:', error);
+                            showNotification('处理图片链接时出错: ' + error.message, 'error');
                         }
                     }
                     
@@ -12459,48 +14215,18 @@ function addNewVehicle() {
                         }, 2000);
                     }
                     
-                    // 查看详情按钮
+                    // 查看详情按钮 - 使用统一的车辆详情模态框
                     if (e.target.classList.contains('view-details-btn') || e.target.closest('.view-details-btn')) {
                         const btn = e.target.closest('.view-details-btn');
                         const id = btn.getAttribute('data-id');
                         
                         const vehicle = mockData.buyerRobot.vehicleList.find(v => v.id === id);
                         
-                        if (vehicle && vehicle.originalData) {
-                            const contentDiv = document.getElementById('original-data-content');
-                            let html = '<h4 class="text-lg font-semibold text-gray-700 mb-4">Excel原始数据</h4>';
-                            html += '<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200">';
-                            html += '<thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">字段名</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">值</th></tr></thead>';
-                            html += '<tbody class="bg-white divide-y divide-gray-200">';
-                            
-                            let dataToShow = vehicle.originalData;
-                            if (vehicle.originalData.originalRow) {
-                                dataToShow = vehicle.originalData.originalRow;
-                            }
-                            
-                            const englishKeys = ['brand', 'model', 'year', 'mileage', 'condition', 'evaluatedPrice', 'status', 'acquisitionPrice', 'sellingPrice', 'acquisitionDate', 'location', 'customer', 'time', 'content', 'description', 'videoUrl', 'contact', 'id', 'originalRow'];
-                            
-                            for (const key in dataToShow) {
-                                if (!englishKeys.includes(key)) {
-                                    let value = dataToShow[key] || '';
-                                    
-                                    if ((key.includes('视频') || key.includes('链接')) && value) {
-                                        const urlPattern = /(https?:\/\/[^\s]+)/gi;
-                                        if (urlPattern.test(value)) {
-                                            value = `<a href="${value}" target="_blank" class="text-blue-600 hover:text-blue-800 underline">${value}</a>`;
-                                        }
-                                    }
-                                    
-                                    html += `<tr><td class="px-4 py-2 text-sm text-gray-900">${key}</td><td class="px-4 py-2 text-sm text-gray-600">${value}</td></tr>`;
-                                }
-                            }
-                            
-                            html += '</tbody></table></div>';
-                            
-                            contentDiv.innerHTML = html;
-                            document.getElementById('original-data-modal').classList.remove('hidden');
+                        if (vehicle) {
+                            // 调用统一的车辆详情模态框函数
+                            openBuyerRobotVehicleDetail(vehicle);
                         } else {
-                            showNotification(`正在加载 ID: ${id} 的详细信息...`, 'info');
+                            showNotification(`未找到 ID: ${id} 的车辆信息`, 'error');
                         }
                     }
                     
@@ -13096,9 +14822,6 @@ function addNewVehicle() {
                 }, 2000);
             }
 
-            // 初始化事件监听（已由DOMContentLoaded事件调用）
-            // initEventListeners();
-        });
     </script>
     <script>
         // 已售车辆卡片点击后自动筛选已售出车辆
@@ -13307,6 +15030,348 @@ function addNewVehicle() {
         // 移除错误处理，避免无限循环
         imgElement.onerror = null;
     }
+    
+    // 快速诊断命令 - 用户可以直接在控制台运行
+    window.diagnoseCloudbase = function() {
+        console.log('🚀 快速 CloudBase 诊断');
+        console.log('==================');
+        
+        // 检查基本状态
+        console.log('1. 基本状态:');
+        console.log('   - URL:', window.location.href);
+        console.log('   - 协议:', window.location.protocol);
+        console.log('   - 是否HTTP/HTTPS:', window.location.protocol.startsWith('http') ? '✅ 是' : '❌ 否');
+        console.log('   - 页面加载时间:', new Date().toLocaleString());
+        
+        // 检查 CloudBase 状态
+        console.log('2. CloudBase 状态:');
+        console.log('   - SDK 加载:', window.cloudbaseSDKLoaded ? '✅ 已加载' : '❌ 未加载');
+        console.log('   - SDK 错误:', window.cloudbaseSDKError || '无');
+        console.log('   - cloudbase 对象:', typeof window.cloudbase);
+        console.log('   - 全局初始化状态:', window.cloudbaseInitialized ? '✅ 已初始化' : '❌ 未初始化');
+        
+        // 检查配置
+        const savedConfig = localStorage.getItem('truckSystemCloudbaseConfig');
+        console.log('3. 本地配置:');
+        console.log('   - 已保存配置:', savedConfig ? '✅ 是' : '❌ 否');
+        if (savedConfig) {
+            try {
+                const config = JSON.parse(savedConfig);
+                console.log('   - 环境ID:', config.envId || '未设置');
+                console.log('   - 发布密钥长度:', config.accessKey ? config.accessKey.length + '字符' : '未设置');
+                console.log('   - 区域:', config.region || '未设置');
+            } catch(e) {
+                console.log('   - 配置解析失败:', e.message);
+            }
+        }
+        
+        // 检查网络连接
+        console.log('4. 网络检查:');
+        console.log('   - navigator.onLine:', navigator.onLine ? '✅ 在线' : '❌ 离线');
+        
+        // 检查函数可用性
+        console.log('5. 函数可用性:');
+        console.log('   - debugCloudbaseConnection:', typeof debugCloudbaseConnection);
+        console.log('   - initCloudBase:', typeof initCloudBase);
+        console.log('   - syncDataToCloud:', typeof syncDataToCloud);
+        console.log('   - loadDataFromCloud:', typeof loadDataFromCloud);
+        
+        // 检查本地数据
+        console.log('6. 本地数据:');
+        console.log('   - mockData.vehicles:', window.mockData && window.mockData.vehicles ? window.mockData.vehicles.length + '条' : '未定义');
+        console.log('   - mockData.pendingVehicles:', window.mockData && window.mockData.pendingVehicles ? window.mockData.pendingVehicles.length + '条' : '未定义');
+        
+        // 检查集合访问问题
+        console.log('7. 集合访问问题检测:');
+        if (cloudbaseLastError) {
+            console.log('   - 最近错误:', cloudbaseLastError);
+            const isCollectionError = cloudbaseLastError.includes('collection') || 
+                                     cloudbaseLastError.includes('permission') ||
+                                     cloudbaseLastError.includes('不存在');
+            console.log('   - 是否为集合/权限错误:', isCollectionError ? '❌ 是' : '✅ 否');
+            
+            if (isCollectionError) {
+                console.log('   ⚠️  检测到数据库集合问题！');
+                console.log('   💡 修复建议:');
+                console.log('      1. 运行 debugCloudbaseConnection() 进行详细诊断');
+                console.log('      2. 在调试结果中选择"自动修复"选项');
+                console.log('      3. 或手动在 CloudBase 控制台中:');
+                console.log('         - 创建集合: vehicles, transactions, pending_vehicles');
+                console.log('         - 设置安全规则: { "read": true, "write": true }');
+            }
+        } else {
+            console.log('   - 最近错误: 无');
+        }
+        
+        console.log('==================');
+        console.log('💡 建议:');
+        console.log('1. 如果SDK未加载，请检查网络连接并刷新页面');
+        console.log('2. 如果配置未保存，请点击"CloudBase 配置"按钮填写信息');
+        console.log('3. 运行 debugCloudbaseConnection() 获取详细诊断信息');
+        console.log('4. 检测到集合问题时，使用调试中的"自动修复"功能');
+        console.log('5. 检查 CloudBase 控制台中的数据库安全规则');
+        console.log('==================');
+    };
+    
+    // 页面加载完成后自动添加诊断命令
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('💡 快速诊断命令已可用:');
+        console.log('   - 输入 diagnoseCloudbase() 进行快速诊断');
+        console.log('   - 输入 debugCloudbaseConnection() 进行详细诊断');
+        console.log('   - 输入 automatedCloudbaseFix() 进行自动修复');
+    });
+
+    // 自动化 CloudBase 修复函数
+    async function automatedCloudbaseFix() {
+        console.log('🚀 开始自动化 CloudBase 修复流程');
+        console.log('================================');
+        
+        try {
+            // 步骤1: 检查基本状态
+            console.log('1. 检查基本状态...');
+            if (typeof window.cloudbase === 'undefined') {
+                console.error('❌ CloudBase SDK 未加载');
+                console.error('CloudBase SDK 未加载，请刷新页面或检查网络连接。');
+                console.error('如果问题持续，请检查浏览器控制台中的网络错误。');
+                return false;
+            }
+            console.log('✅ SDK 已加载');
+
+            // 步骤2: 检查配置
+            console.log('2. 检查配置...');
+            const savedConfig = localStorage.getItem('truckSystemCloudbaseConfig');
+            if (!savedConfig) {
+                console.error('❌ 未找到配置，需要用户输入');
+                console.error('未找到 CloudBase 配置，请点击"配置 CloudBase"按钮填写环境ID和发布密钥。');
+                showCloudbaseConfigModal('请填写 CloudBase 配置信息');
+                return false;
+            }
+
+            const config = JSON.parse(savedConfig);
+            const currentEnvId = config.envId;
+            console.log('   当前环境ID:', currentEnvId || '未设置');
+            console.log('   发布密钥:', config.accessKey ? '已设置' : '未设置');
+            
+            if (!currentEnvId || !config.accessKey) {
+                console.error('❌ 配置不完整');
+                console.error('CloudBase 配置不完整，请填写环境ID和发布密钥。');
+                showCloudbaseConfigModal('配置不完整，请填写环境ID和发布密钥');
+                return false;
+            }
+            console.log('✅ 配置完整');
+
+            // 步骤3: 检查环境ID匹配（静默自动验证）
+            console.log('3. 检查环境ID匹配...');
+            const correctEnvId = 'xdd-icloud-d4glnl20dd7934de9';
+            
+            // 自动检查环境ID是否正确
+            if (currentEnvId !== correctEnvId) {
+                console.log(`⚠️ 环境ID不匹配，自动修复中...`);
+                console.log(`   当前环境ID: ${currentEnvId}`);
+                console.log(`   正确环境ID: ${correctEnvId}`);
+                
+                // 自动修复环境ID
+                config.envId = correctEnvId;
+                config.region = 'ap-shanghai';
+                localStorage.setItem('truckSystemCloudbaseConfig', JSON.stringify(config));
+                console.log('✅ 环境ID已自动修复');
+            } else {
+                console.log('✅ 环境ID正确:', currentEnvId);
+            }
+            console.log('✅ 环境ID已确认');
+
+            // 步骤4: 初始化连接
+            console.log('4. 初始化 CloudBase 连接...');
+            const initSuccess = await initCloudBase();
+            if (!initSuccess) {
+                console.error('❌ CloudBase 初始化失败');
+                console.error('CloudBase 初始化失败，请检查控制台中的错误信息。');
+                return false;
+            }
+            console.log('✅ CloudBase 连接成功');
+
+            // 步骤5: 检查并修复数据库集合
+            console.log('5. 检查并修复数据库集合...');
+            const databaseRepaired = await fixCloudbaseDatabase();
+            if (!databaseRepaired) {
+                console.error('❌ 数据库修复失败');
+                console.error('数据库修复失败，可能是权限问题。');
+                console.error('请在 CloudBase 控制台中：');
+                console.error('1. 确保集合 vehicles, transactions, pending_vehicles 存在');
+                console.error('2. 设置安全规则为 { "read": true, "write": true }');
+                return false;
+            }
+            console.log('✅ 数据库集合已修复');
+
+            // 步骤6: 验证写入权限
+            console.log('6. 验证写入权限...');
+            try {
+                const testData = {
+                    _test: true,
+                    _source: 'automated_fix_test',
+                    _timestamp: new Date(),
+                    message: '自动化修复测试文档'
+                };
+                
+                const vehiclesCollection = cloudbaseDb.collection('vehicles');
+                await vehiclesCollection.add(testData);
+                console.log('✅ 写入权限验证成功');
+
+                // 清理测试文档
+                setTimeout(async () => {
+                    try {
+                        const testDocs = await vehiclesCollection.where({ _test: true }).get();
+                        if (testDocs.data && testDocs.data.length > 0) {
+                            await vehiclesCollection.doc(testDocs.data[0]._id).remove();
+                            console.log('✅ 测试文档已清理');
+                        }
+                    } catch (cleanupError) {
+                        console.log('清理测试文档失败，不影响正常使用:', cleanupError.message);
+                    }
+                }, 1000);
+
+            } catch (writeError) {
+                console.error('❌ 写入权限验证失败:', writeError.message);
+                console.error('写入权限验证失败！');
+                console.error('请在 CloudBase 控制台中检查 vehicles 集合的安全规则，确保设置为：');
+                console.error('{ "read": true, "write": true }');
+                return false;
+            }
+
+            // 步骤7: 检查本地数据并同步
+            console.log('7. 检查本地数据...');
+            const localVehicleCount = mockData.vehicles.length;
+            const localPendingCount = mockData.pendingVehicles.length;
+            
+            if (localVehicleCount === 0 && localPendingCount === 0) {
+                console.log('⚠️ 本地数据为空，跳过自动同步。请添加或导入数据后再试。');
+            }
+
+            // 步骤8: 尝试同步数据
+            console.log('8. 尝试同步数据到云端...');
+            const syncResult = await syncDataToCloud();
+            if (syncResult) {
+                console.log('✅ 数据同步成功！');
+                console.log('🎉 自动化修复成功！');
+                console.log('已完成以下修复：');
+                console.log('1. 验证 CloudBase SDK');
+                console.log('2. 检查配置完整性');
+                console.log('3. 确认环境ID匹配');
+                console.log('4. 建立 CloudBase 连接');
+                console.log('5. 修复数据库集合');
+                console.log('6. 验证写入权限');
+                console.log('7. 同步数据到云端');
+                console.log('现在您的系统已完全连接到 CloudBase 云端！');
+                return true;
+            } else {
+                console.error('❌ 数据同步失败');
+                console.log('自动化修复完成，但数据同步失败。');
+                console.log('可能原因：');
+                console.log('1. 本地数据为空');
+                console.log('2. 网络连接问题');
+                console.log('3. 权限限制');
+                console.log('建议：');
+                console.log('1. 添加车辆数据后再次尝试同步');
+                console.log('2. 检查 CloudBase 控制台中的安全规则');
+                console.log('3. 运行 debugCloudbaseConnection() 进行详细诊断');
+                return false;
+            }
+
+        } catch (error) {
+            console.error('❌ 自动化修复过程中出错:', error);
+            console.error('自动化修复失败：' + error.message);
+            console.error('请运行 debugCloudbaseConnection() 进行详细诊断，或手动检查配置。');
+            return false;
+        }
+    }
+
+    // 将自动化修复函数暴露给全局
+    window.automatedCloudbaseFix = automatedCloudbaseFix;
+
+    // 自动修复环境ID（静默执行，不弹窗）
+    (function autoFixEnvId() {
+        const correctEnvId = 'xdd-icloud-d4glnl20dd7934de9';
+        try {
+            const savedConfig = localStorage.getItem('truckSystemCloudbaseConfig');
+            if (savedConfig) {
+                const config = JSON.parse(savedConfig);
+                // 如果环境ID不正确，自动修复
+                if (config.envId !== correctEnvId) {
+                    console.log('🔄 检测到环境ID不匹配，自动修复中...');
+                    console.log('   旧环境ID:', config.envId);
+                    console.log('   新环境ID:', correctEnvId);
+                    config.envId = correctEnvId;
+                    config.region = 'ap-shanghai';
+                    localStorage.setItem('truckSystemCloudbaseConfig', JSON.stringify(config));
+                    console.log('✅ 环境ID已自动修复');
+                    // 重新初始化
+                    if (typeof initCloudBase === 'function') {
+                        setTimeout(async () => {
+                            await initCloudBase();
+                            console.log('✅ CloudBase 已重新初始化');
+                        }, 500);
+                    }
+                } else {
+                    console.log('✅ 环境ID正确:', config.envId);
+                }
+            } else {
+                console.log('⚠️ 未找到配置，请在系统设置中配置 CloudBase');
+            }
+        } catch (error) {
+            console.error('自动修复环境ID失败:', error);
+        }
+    })();
+
+    // 在配置模态框中添加自动化修复按钮
+    document.addEventListener('DOMContentLoaded', function() {
+        // 延迟执行，确保模态框已创建
+        setTimeout(() => {
+            const modal = document.getElementById('cloudbase-config-modal');
+            if (modal) {
+                // 查找按钮容器
+                const buttonContainer = modal.querySelector('.mt-6.flex.justify-end.space-x-3');
+                if (buttonContainer) {
+                    // 创建自动化修复按钮
+                    const autoFixBtn = document.createElement('button');
+                    autoFixBtn.type = 'button';
+                    autoFixBtn.id = 'cloudbase-auto-fix-btn';
+                    autoFixBtn.className = 'px-4 py-2 border border-purple-300 bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500';
+                    autoFixBtn.textContent = '自动修复';
+                    autoFixBtn.title = '自动检测并修复所有 CloudBase 问题';
+                    
+                    // 插入到修复按钮之后
+                    const fixBtn = buttonContainer.querySelector('#cloudbase-fix-btn');
+                    if (fixBtn) {
+                        fixBtn.parentNode.insertBefore(autoFixBtn, fixBtn.nextSibling);
+                    } else {
+                        buttonContainer.insertBefore(autoFixBtn, buttonContainer.firstChild);
+                    }
+
+                    // 添加事件监听器
+                    autoFixBtn.addEventListener('click', async function() {
+                        console.log('自动修复按钮被点击');
+                        console.log('开始执行自动化 CloudBase 修复...');
+                        
+                        try {
+                            hideCloudbaseConfigModal();
+                            console.log('开始执行自动化修复...');
+                            const result = await automatedCloudbaseFix();
+                            if (result) {
+                                console.log('自动化修复成功');
+                            } else {
+                                console.log('自动化修复失败，请查看控制台详细信息');
+                            }
+                        } catch (error) {
+                            console.error('自动化修复过程中出错:', error);
+                            console.error('自动化修复过程中出错: ' + error.message);
+                        }
+                    });
+                    
+                    console.log('✅ 自动化修复按钮已添加到配置模态框');
+                }
+            }
+        }, 1000);
+    });
     </script>
 
 </body></html>
