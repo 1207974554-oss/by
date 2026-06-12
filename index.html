@@ -3820,6 +3820,11 @@
                 }
                 
                 console.error(errorMessage);
+                cloudbaseLastError = '同步: ' + (error.message || String(error));
+                updateCloudbaseStatusDisplay();
+                if (typeof showNotification === 'function') {
+                    showNotification('同步失败：' + (error.message || '网络错误'), 'error');
+                }
                 return false;
             }
         }
@@ -4420,6 +4425,12 @@
                 return true;
             } catch (error) {
                 console.error('从 CloudBase 加载数据失败:', error);
+                // 在页面上显示错误，方便用户发现问题
+                if (typeof showNotification === 'function') {
+                    showNotification('云同步失败：' + (error.message || '未知错误，可能是 CORS 跨域限制'), 'error');
+                }
+                cloudbaseLastError = '加载失败: ' + (error.message || String(error));
+                updateCloudbaseStatusDisplay();
                 return false;
             }
         }
@@ -4433,8 +4444,12 @@
                 setTimeout(() => {
                     syncDataToCloud().then(success => {
                         if (success) {
-                            console.log('数据已同步到云端');
+                            console.log('✅ 数据已自动同步到云端');
+                        } else {
+                            console.warn('⚠️ 自动同步到云端失败，数据仅保存在本地');
                         }
+                    }).catch(err => {
+                        console.error('自动同步异常:', err);
                     });
                 }, 100);
             }
@@ -4589,17 +4604,22 @@
                 
                 if (cloudbaseSyncBtn) {
                     cloudbaseSyncBtn.addEventListener('click', function() {
-                        if (cloudbaseInitialized) {
-                            syncDataToCloud().then(success => {
-                                if (success) {
-                                    alert('数据已同步到云端！');
-                                } else {
-                                    alert('数据同步失败，请检查网络连接和配置。');
-                                }
-                            });
-                        } else {
-                            showCloudbaseConfigModal('请先配置 CloudBase 连接');
+                        if (!cloudbaseInitialized) {
+                            showCloudbaseConfigModal('请先配置并连接 CloudBase');
+                            return;
                         }
+                        if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
+                            alert('⚠️ 本地没有车辆数据，无法同步。\n\n请先添加或导入车辆数据。');
+                            return;
+                        }
+                        syncDataToCloud().then(success => {
+                            if (success) {
+                                alert('✅ 数据已成功同步到云端！');
+                            } else {
+                                const errMsg = cloudbaseLastError || '未知错误';
+                                alert('❌ 同步失败：' + errMsg + '\n\n常见原因：\n1. CORS 跨域限制 → 去 CloudBase 控制台添加域名白名单\n2. 数据库权限不足 → 设置安全规则为 { "read": true, "write": true }\n3. 网络问题 → 检查网络连接');
+                            }
+                        });
                     });
                     console.log('CloudBase 同步按钮事件绑定成功');
                 }
@@ -4712,15 +4732,15 @@
                 statusElement.style.cursor = 'pointer';
                 statusElement.title = '点击重新加载页面';
             } else if (cloudbaseConfig.envId && cloudbaseConfig.accessKey && cloudbaseLastError) {
-                // SDK 已加载，配置已保存，但连接失败
+                // SDK 已加载，配置已保存，但连接失败 —— 直接显示错误信息
                 dotElement.className = 'w-2 h-2 rounded-full bg-yellow-500 mr-2';
-                textElement.textContent = '连接失败';
-                // 添加点击查看错误详情功能
+                textElement.textContent = '连接失败：' + cloudbaseLastError;
+                // 点击查看完整错误
                 statusElement.onclick = function() {
-                    showCloudbaseConfigModal('连接失败: ' + cloudbaseLastError + '\n\n请检查环境ID和发布密钥是否正确。');
+                    showCloudbaseConfigModal('连接失败详情:\n\n' + cloudbaseLastError + '\n\n常见解决方案：\n1. 检查 CloudBase 控制台「安全配置」→「Web 安全域名」是否已添加:\n   1207974554-oss.github.io\n2. 检查「用户管理」→「登录设置」匿名登录是否开启\n3. 检查数据库安全规则 read/write 是否为 true');
                 };
                 statusElement.style.cursor = 'pointer';
-                statusElement.title = '点击查看错误详情';
+                statusElement.title = '点击查看完整错误和解决方案';
             } else {
                 // SDK 已加载但未配置或未连接
                 dotElement.className = 'w-2 h-2 rounded-full bg-gray-300 mr-2';
