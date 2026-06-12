@@ -4320,16 +4320,33 @@
                     });
                     console.log('从云端加载车辆数据:', cloudVehicles.length, '条记录');
                     
-                    // 如果本地已有数据，以本地数据为准，只补充本地没有的车辆
+                    // 以云端数据为准更新本地数据（云端是多设备同步后的最新版本）
                     if (mockData.vehicles.length > 0) {
-                        const localIds = new Set(mockData.vehicles.map(v => v.id));
-                        const newFromCloud = cloudVehicles.filter(v => !localIds.has(v.id));
-                        if (newFromCloud.length > 0) {
-                            mockData.vehicles = [...mockData.vehicles, ...newFromCloud];
-                            console.log(`云端合并：新增 ${newFromCloud.length} 辆云端独有车辆，合并后共 ${mockData.vehicles.length} 辆`);
-                        } else {
-                            console.log('云端数据已全部在本地存在，无需合并');
-                        }
+                        const cloudMap = new Map(cloudVehicles.map(v => [v.id, v]));
+                        const localMap = new Map(mockData.vehicles.map(v => [v.id, v]));
+                        let addedCount = 0;
+                        let updatedCount = 0;
+                        
+                        // 用云端数据更新或新增
+                        cloudVehicles.forEach(cv => {
+                            if (localMap.has(cv.id)) {
+                                // 云端版本覆盖本地（云端是最新同步版本）
+                                const idx = mockData.vehicles.findIndex(v => v.id === cv.id);
+                                if (idx !== -1) {
+                                    mockData.vehicles[idx] = cv;
+                                    updatedCount++;
+                                }
+                            } else {
+                                // 本地没有的，新增
+                                mockData.vehicles.push(cv);
+                                addedCount++;
+                            }
+                        });
+                        
+                        // 本地独有的车辆也保留（可能是离线时新增的）
+                        const localOnly = mockData.vehicles.filter(v => !cloudMap.has(v.id));
+                        
+                        console.log(`云端合并：更新 ${updatedCount} 辆，新增 ${addedCount} 辆，本地独有 ${localOnly.length} 辆，合并后共 ${mockData.vehicles.length} 辆`);
                     } else {
                         // 本地没有数据时才直接使用云端数据
                         mockData.vehicles = cloudVehicles;
@@ -4348,10 +4365,25 @@
                 if (!transactionsResult || !transactionsResult.data) {
                     console.warn('从云端加载交易数据返回空结果，可能是集合不存在或权限不足');
                 } else if (transactionsResult.data.length > 0) {
-                    mockData.transactions = transactionsResult.data.map(doc => {
+                    const cloudTransactions = transactionsResult.data.map(doc => {
                         const { _id, _syncTime, _source, ...transactionData } = doc;
                         return transactionData;
                     });
+                    // 按 ID 合并交易数据
+                    if (mockData.transactions.length > 0) {
+                        const cloudTxIds = new Set(cloudTransactions.map(t => t.id));
+                        const existingTxIds = new Set(mockData.transactions.map(t => t.id));
+                        // 云端有但本地没有的，补充进来
+                        const newTx = cloudTransactions.filter(t => !existingTxIds.has(t.id));
+                        // 保留本地独有的（离线新增）
+                        const localOnlyTx = mockData.transactions.filter(t => !cloudTxIds.has(t.id));
+                        mockData.transactions = [...cloudTransactions, ...localOnlyTx];
+                        if (newTx.length > 0) {
+                            console.log(`云端合并交易：新增 ${newTx.length} 条，合并后共 ${mockData.transactions.length} 条`);
+                        }
+                    } else {
+                        mockData.transactions = cloudTransactions;
+                    }
                 }
                 
                 // 从云端加载待处理车辆数据
@@ -4365,10 +4397,23 @@
                 if (!pendingResult || !pendingResult.data) {
                     console.warn('从云端加载待处理车辆数据返回空结果，可能是集合不存在或权限不足');
                 } else if (pendingResult.data.length > 0) {
-                    mockData.pendingVehicles = pendingResult.data.map(doc => {
+                    const cloudPending = pendingResult.data.map(doc => {
                         const { _id, _syncTime, _source, ...pendingData } = doc;
                         return pendingData;
                     });
+                    // 按 ID 合并待处理车辆数据
+                    if (mockData.pendingVehicles.length > 0) {
+                        const cloudPIds = new Set(cloudPending.map(p => p.id));
+                        const existingPIds = new Set(mockData.pendingVehicles.map(p => p.id));
+                        const newPending = cloudPending.filter(p => !existingPIds.has(p.id));
+                        const localOnlyPending = mockData.pendingVehicles.filter(p => !cloudPIds.has(p.id));
+                        mockData.pendingVehicles = [...cloudPending, ...localOnlyPending];
+                        if (newPending.length > 0) {
+                            console.log(`云端合并待处理：新增 ${newPending.length} 条，合并后共 ${mockData.pendingVehicles.length} 条`);
+                        }
+                    } else {
+                        mockData.pendingVehicles = cloudPending;
+                    }
                 }
                 
                 console.log('从 CloudBase 加载数据完成');
@@ -4396,28 +4441,37 @@
             return localResult;
         };
 
-        // 修改加载数据函数，尝试从云端加载（仅当本地无数据时才从云端获取）
+        // 修改加载数据函数，始终从云端同步最新数据（多设备协同）
+        let cloudLoadInProgress = false; // 防止并发加载
         const originalLoadDataFromStorage = loadDataFromStorage;
         loadDataFromStorage = function() {
             const localResult = originalLoadDataFromStorage();
-            // 仅当本地没有数据时，才异步从云端加载
-            if (cloudbaseInitialized && mockData.vehicles.length === 0) {
+            // 始终从云端加载最新数据，确保多台电脑协同工作
+            if (cloudbaseInitialized && !cloudLoadInProgress) {
+                cloudLoadInProgress = true;
                 setTimeout(() => {
                     loadDataFromCloud().then(success => {
                         if (success) {
-                            console.log('已从云端加载数据，更新界面');
+                            console.log('✅ 已从云端同步最新数据，更新界面');
+                            // 同步完成后保存合并结果到本地
+                            originalSaveDataToStorage();
                             // 更新界面显示
                             if (typeof updateDashboard === 'function') {
                                 updateDashboard();
                             }
-                            if (typeof renderVehicleTable === 'function') {
-                                renderVehicleTable();
+                            if (typeof renderInventoryTable === 'function') {
+                                renderInventoryTable();
+                            }
+                            if (typeof renderBuyerRobotTable === 'function') {
+                                renderBuyerRobotTable();
+                            }
+                            if (typeof renderSellerVehicleTable === 'function') {
+                                renderSellerVehicleTable();
                             }
                         }
+                        cloudLoadInProgress = false;
                     });
                 }, 500);
-            } else if (cloudbaseInitialized) {
-                console.log('本地已有数据，跳过从云端加载（车辆数:', mockData.vehicles.length, '）');
             }
             return localResult;
         };
