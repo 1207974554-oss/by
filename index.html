@@ -3689,6 +3689,10 @@
             }
         }
 
+        // 云端同步锁（防止 syncDataToCloud 和 loadDataFromCloud 并发竞争）
+        let cloudSyncInProgress = false;
+        let cloudLoadInProgress = false; // 已存在，复用
+        
         // 同步数据到云端
         async function syncDataToCloud() {
             if (!cloudbaseInitialized) {
@@ -3696,8 +3700,13 @@
                 console.warn('CloudBase 未初始化，请先配置并连接 CloudBase');
                 return false;
             }
+            if (cloudLoadInProgress) {
+                console.log('⏳ 正在从云端加载数据，跳过本次同步（避免竞争）');
+                return false;
+            }
             
             try {
+                cloudSyncInProgress = true;
                 console.log('=== 开始同步数据到 CloudBase ===');
                 
                 // 检查本地数据
@@ -4049,6 +4058,8 @@
                     showNotification('同步失败：' + (error.message || '网络错误'), 'error');
                 }
                 return false;
+            } finally {
+                cloudSyncInProgress = false;
             }
         }
 
@@ -4580,8 +4591,13 @@
                 console.log('CloudBase 未初始化，无法从云端加载数据');
                 return false;
             }
+            if (cloudSyncInProgress) {
+                console.log('⏳ 正在同步数据到云端，跳过本次加载（避免竞争）');
+                return false;
+            }
             
             try {
+                cloudLoadInProgress = true;
                 console.log('开始从 CloudBase 加载数据...');
                 // 🔑 加载本地最后保存时间戳（用于防止云端旧数据覆盖本地新删除）
                 const lastSaveTime = parseInt(localStorage.getItem('_truckLastSaveTime') || '0');
@@ -4758,6 +4774,8 @@
                 cloudbaseLastError = '加载失败: ' + (error.message || String(error));
                 updateCloudbaseStatusDisplay();
                 return false;
+            } finally {
+                cloudLoadInProgress = false;
             }
         }
 
@@ -4783,7 +4801,6 @@
         };
 
         // 修改加载数据函数，始终从云端同步最新数据（多设备协同）
-        let cloudLoadInProgress = false; // 防止并发加载
         const originalLoadDataFromStorage = loadDataFromStorage;
         loadDataFromStorage = function() {
             const localResult = originalLoadDataFromStorage();
