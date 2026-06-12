@@ -3592,10 +3592,32 @@
                 console.log('  - 交易数据:', localTransactionCount, '条');
                 console.log('  - 待处理车辆数据:', localPendingCount, '条');
                 
-                // 如果本地数据为空，直接返回提示
+                // 如果本地数据为空，执行全量清除同步（本地空 = 云端也应空，确保一致）
                 if (localVehicleCount === 0 && localPendingCount === 0) {
-                    console.warn('⚠️ 本地数据为空，无法同步到云端。请添加或导入数据后再试。');
-                    return false;
+                    console.log('⚠️ 本地数据为空，执行云端全量清除同步...');
+                    await initCloudbaseDatabase();
+                    const collectionsToClear = ['vehicles', 'transactions', 'pending_vehicles'];
+                    let clearedCount = 0;
+                    for (const collName of collectionsToClear) {
+                        try {
+                            const collection = cloudbaseDb.collection(collName);
+                            let batchDeleted = 0;
+                            while (true) {
+                                const result = await collection.where({ _source: 'truck_used_car_system' }).limit(100).get();
+                                if (!result.data || result.data.length === 0) break;
+                                for (const doc of result.data) {
+                                    await collection.doc(doc._id).remove();
+                                    batchDeleted++;
+                                }
+                            }
+                            console.log(`✅ 云端 ${collName} 已清除 ${batchDeleted} 条`);
+                            clearedCount += batchDeleted;
+                        } catch (e) {
+                            console.warn(`清除云端 ${collName} 失败:`, e.message);
+                        }
+                    }
+                    console.log(`✅ 云端数据已全部清空（共 ${clearedCount} 条），与本地一致`);
+                    return true;
                 }
                 
                 // 尝试初始化数据库结构（确保集合存在）
@@ -3667,6 +3689,28 @@
                     console.log('车辆数据同步完成:', vehiclesCreated, '条新增,', vehiclesUpdated, '条更新,', vehiclesFailed, '条失败');
                 }
                 
+                // 删除云端多余的车辆（本地已删除的）
+                try {
+                    const localVehicleIds = new Set(mockData.vehicles.map(v => v.id));
+                    const cloudAllVehicles = await cloudbaseDb.collection('vehicles')
+                        .where({ _source: 'truck_used_car_system' })
+                        .limit(1000).get();
+                    if (cloudAllVehicles && cloudAllVehicles.data) {
+                        let deletedCount = 0;
+                        for (const doc of cloudAllVehicles.data) {
+                            if (!localVehicleIds.has(doc.id)) {
+                                await cloudbaseDb.collection('vehicles').doc(doc._id).remove();
+                                deletedCount++;
+                            }
+                        }
+                        if (deletedCount > 0) {
+                            console.log(`🗑️ 云端已删除 ${deletedCount} 辆本地不存在的车辆`);
+                        }
+                    }
+                } catch (cloudCleanErr) {
+                    console.warn('清理云端多余车辆失败:', cloudCleanErr.message);
+                }
+                
                 // 同步交易数据（查重后更新或新增）
                 if (localTransactionCount > 0) {
                     const transactionsCollection = cloudbaseDb.collection('transactions');
@@ -3704,6 +3748,23 @@
                     console.log('交易数据同步完成:', transactionsCreated, '条新增,', transactionsUpdated, '条更新,', transactionsFailed, '条失败');
                 }
                 
+                // 删除云端多余的交易记录
+                try {
+                    const localTxIds = new Set(mockData.transactions.map(t => t.id));
+                    const cloudAllTx = await cloudbaseDb.collection('transactions')
+                        .where({ _source: 'truck_used_car_system' }).limit(1000).get();
+                    if (cloudAllTx && cloudAllTx.data) {
+                        let deletedTx = 0;
+                        for (const doc of cloudAllTx.data) {
+                            if (!localTxIds.has(doc.id)) {
+                                await cloudbaseDb.collection('transactions').doc(doc._id).remove();
+                                deletedTx++;
+                            }
+                        }
+                        if (deletedTx > 0) console.log(`🗑️ 云端已删除 ${deletedTx} 条本地不存在的交易`);
+                    }
+                } catch (e) { console.warn('清理云端多余交易失败:', e.message); }
+                
                 // 同步待处理车辆数据（查重后更新或新增）
                 if (localPendingCount > 0) {
                     const pendingCollection = cloudbaseDb.collection('pending_vehicles');
@@ -3740,6 +3801,23 @@
                     }
                     console.log('待处理车辆数据同步完成:', pendingCreated, '条新增,', pendingUpdated, '条更新,', pendingFailed, '条失败');
                 }
+                
+                // 删除云端多余的待处理车辆
+                try {
+                    const localPIds = new Set(mockData.pendingVehicles.map(p => p.id));
+                    const cloudAllPending = await cloudbaseDb.collection('pending_vehicles')
+                        .where({ _source: 'truck_used_car_system' }).limit(1000).get();
+                    if (cloudAllPending && cloudAllPending.data) {
+                        let deletedP = 0;
+                        for (const doc of cloudAllPending.data) {
+                            if (!localPIds.has(doc.id)) {
+                                await cloudbaseDb.collection('pending_vehicles').doc(doc._id).remove();
+                                deletedP++;
+                            }
+                        }
+                        if (deletedP > 0) console.log(`🗑️ 云端已删除 ${deletedP} 条本地不存在的待处理车辆`);
+                    }
+                } catch (e) { console.warn('清理云端多余待处理车辆失败:', e.message); }
                 
                 // 总结
                 const totalCreated = vehiclesCreated + transactionsCreated + pendingCreated;
@@ -5353,30 +5431,17 @@
                 initCharts();
             }, 100);
             
-            // 清除云端数据
-            if (cloudbaseInitialized && cloudbaseDb) {
-                console.log('开始清除云端数据...');
-                const collections = ['vehicles', 'transactions', 'pending_vehicles'];
-                for (const collName of collections) {
-                    try {
-                        const collection = cloudbaseDb.collection(collName);
-                        // 获取所有文档并删除
-                        const result = await collection.limit(1000).get();
-                        if (result.data && result.data.length > 0) {
-                            for (const doc of result.data) {
-                                await collection.doc(doc._id).remove();
-                            }
-                            console.log(`✅ 云端集合 ${collName} 已清除 ${result.data.length} 条数据`);
-                        } else {
-                            console.log(`云端集合 ${collName} 无数据`);
-                        }
-                    } catch (cloudErr) {
-                        console.error(`❌ 清除云端集合 ${collName} 失败:`, cloudErr.message);
+            // 同步清除云端数据（syncDataToCloud 会自动检测本地为空并清除云端）
+            if (cloudbaseInitialized) {
+                syncDataToCloud().then(success => {
+                    if (success) {
+                        showNotification('✅ 本地和云端数据已全部清除', 'success');
+                    } else {
+                        showNotification('⚠️ 本地数据已清除，云端同步失败，请手动同步', 'warning');
                     }
-                }
-                showNotification('本地和云端数据已清除', 'success');
+                });
             } else {
-                showNotification('本地数据已清除（云端未连接，请手动同步清除）', 'success');
+                showNotification('🧹 本地数据已清除（云端未连接）', 'success');
             }
             
             // 刷新页面以完全重置状态
