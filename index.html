@@ -3646,35 +3646,40 @@
             
             if (initSuccess) {
                 hideCloudbaseConfigModal();
-                // 等待认证完成后尝试同步数据到云端
+                // 等待认证完成后：先 push 本地数据到云端，再 pull 云端数据到本地（双向同步），最后启动轮询
                 console.log('等待认证完成...');
-                setTimeout(() => {
-                    console.log('开始同步数据到云端...');
-                    syncDataToCloud().then(success => {
-                        console.log('数据同步结果:', success);
-                        if (success) {
-                            alert('CloudBase 配置已保存并连接成功！数据已开始同步到云端。');
-                        } else {
-                            let failMessage = 'CloudBase 配置已保存并连接成功！但数据同步失败，请稍后手动同步。';
-                            
-                            // 检查是否是本地数据为空导致的同步失败
-                            if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
-                                failMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
-                            }
-                            
-                            alert(failMessage);
-                        }
-                    }).catch(error => {
-                        console.error('数据同步出错:', error);
-                        let errorMessage = 'CloudBase 配置已保存并连接成功！但数据同步过程中出错：' + error.message;
-                        
-                        // 检查是否是本地数据为空导致的同步失败
+                setTimeout(async () => {
+                    // 1. 先 push 本地数据到云端
+                    console.log('1. 推送本地数据到云端...');
+                    const pushResult = await syncDataToCloud();
+                    console.log('  推送结果:', pushResult ? '成功' : '失败');
+                    
+                    // 2. 再从云端 pull 其他设备的数据
+                    console.log('2. 从云端拉取最新数据...');
+                    const pullResult = await loadDataFromCloud();
+                    console.log('  拉取结果:', pullResult ? '成功' : '失败');
+                    
+                    // 3. 刷新界面
+                    if (pullResult) {
+                        if (typeof updateDashboard === 'function') updateDashboard();
+                        if (typeof renderInventoryTable === 'function') renderInventoryTable();
+                        if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                        if (typeof renderSellerVehicleTable === 'function') renderSellerVehicleTable();
+                    }
+                    
+                    // 4. 启动云端轮询（检测其他设备更新）
+                    startCloudPolling();
+                    console.log('3. 云端轮询已启动');
+                    
+                    if (pushResult) {
+                        alert('✅ CloudBase 连接成功！双向同步已开启，每30秒自动检查云端更新。');
+                    } else {
+                        let failMessage = 'CloudBase 已连接！但数据同步失败，请稍后手动同步。';
                         if (mockData.vehicles.length === 0 && mockData.pendingVehicles.length === 0) {
-                            errorMessage += '\n\n⚠️  检测到本地数据为空，这是同步失败的可能原因。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
+                            failMessage += '\n\n⚠️  检测到本地数据为空。\n\n建议：\n1. 点击"调试"按钮创建测试数据\n2. 或手动添加车辆数据后再同步';
                         }
-                        
-                        alert(errorMessage);
-                    });
+                        alert(failMessage);
+                    }
                 }, 1000); // 等待1秒让认证完成
             } else {
                 // 初始化失败，但仍然更新状态显示
@@ -4563,6 +4568,11 @@
             }
         }
 
+        // 追踪云端已知的 ID 集合（用于检测其他设备的删除操作）
+        let lastKnownCloudVehicleIds = new Set();
+        let lastKnownCloudTransactionIds = new Set();
+        let lastKnownCloudPendingIds = new Set();
+        
         // 从云端加载数据
         async function loadDataFromCloud() {
             if (!cloudbaseInitialized) {
@@ -4623,6 +4633,26 @@
                         mockData.vehicles = cloudVehicles;
                         console.log('本地无数据，直接使用云端数据:', mockData.vehicles.length, '条记录');
                     }
+                    
+                    // 🔑 检测其他设备删除：如果某车辆上次在云端、这次不在 → 说明被其他设备删了 → 从本地也删除
+                    if (lastKnownCloudVehicleIds.size > 0) {
+                        const newCloudIds = new Set(cloudVehicles.map(v => v.id));
+                        let removedCount = 0;
+                        for (const id of lastKnownCloudVehicleIds) {
+                            if (!newCloudIds.has(id)) {
+                                const idx = mockData.vehicles.findIndex(v => v.id === id);
+                                if (idx !== -1) {
+                                    mockData.vehicles.splice(idx, 1);
+                                    removedCount++;
+                                    console.log(`🗑️ 检测到其他设备删除，同步移除本地车辆: ${id}`);
+                                }
+                            }
+                        }
+                        if (removedCount > 0) console.log(`🗑️ 同步删除共 ${removedCount} 辆车`);
+                        if (cloudVehicles.length === 0 && removedCount > 0) console.log('🔄 云端数据已被清空，本地同步清空');
+                    }
+                    // 更新云端 ID 追踪（云端为空时也要更新，标记为空）
+                    lastKnownCloudVehicleIds = new Set(cloudVehicles.map(v => v.id));
                 }
                 
                 // 从云端加载交易数据
@@ -4655,6 +4685,20 @@
                     } else {
                         mockData.transactions = cloudTransactions;
                     }
+                    
+                    // 🔑 检测其他设备删除的交易
+                    if (lastKnownCloudTransactionIds.size > 0) {
+                        const newCloudTxIds = new Set(cloudTransactions.map(t => t.id));
+                        let removedTxCount = 0;
+                        for (const id of lastKnownCloudTransactionIds) {
+                            if (!newCloudTxIds.has(id)) {
+                                const idx = mockData.transactions.findIndex(t => t.id === id);
+                                if (idx !== -1) { mockData.transactions.splice(idx, 1); removedTxCount++; }
+                            }
+                        }
+                        if (removedTxCount > 0) console.log(`🗑️ 同步删除 ${removedTxCount} 条交易`);
+                    }
+                    lastKnownCloudTransactionIds = new Set(cloudTransactions.map(t => t.id));
                 }
                 
                 // 从云端加载待处理车辆数据
@@ -4685,6 +4729,20 @@
                     } else {
                         mockData.pendingVehicles = cloudPending;
                     }
+                    
+                    // 🔑 检测其他设备删除的待处理车辆
+                    if (lastKnownCloudPendingIds.size > 0) {
+                        const newCloudPIds = new Set(cloudPending.map(p => p.id));
+                        let removedPCount = 0;
+                        for (const id of lastKnownCloudPendingIds) {
+                            if (!newCloudPIds.has(id)) {
+                                const idx = mockData.pendingVehicles.findIndex(p => p.id === id);
+                                if (idx !== -1) { mockData.pendingVehicles.splice(idx, 1); removedPCount++; }
+                            }
+                        }
+                        if (removedPCount > 0) console.log(`🗑️ 同步删除 ${removedPCount} 条待处理车辆`);
+                    }
+                    lastKnownCloudPendingIds = new Set(cloudPending.map(p => p.id));
                 }
                 
                 // 同步 buyerRobot.vehicleList 与 pendingVehicles（确保一致）
@@ -4874,7 +4932,7 @@
                 }
                 
                 if (cloudbaseSyncBtn) {
-                    cloudbaseSyncBtn.addEventListener('click', function() {
+                    cloudbaseSyncBtn.addEventListener('click', async function() {
                         if (!cloudbaseInitialized) {
                             showCloudbaseConfigModal('请先配置并连接 CloudBase');
                             return;
@@ -4883,14 +4941,37 @@
                             alert('⚠️ 本地没有车辆数据，无法同步。\n\n请先添加或导入车辆数据。');
                             return;
                         }
-                        syncDataToCloud().then(success => {
-                            if (success) {
-                                alert('✅ 数据已成功同步到云端！');
-                            } else {
+                        cloudbaseSyncBtn.disabled = true;
+                        cloudbaseSyncBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>同步中...';
+                        
+                        try {
+                            // 双向同步：先推送到云端，再从云端拉取
+                            const pushResult = await syncDataToCloud();
+                            if (!pushResult) {
                                 const errMsg = cloudbaseLastError || '未知错误';
-                                alert('❌ 同步失败：' + errMsg + '\n\n常见原因：\n1. CORS 跨域限制 → 去 CloudBase 控制台添加域名白名单\n2. 数据库权限不足 → 设置安全规则为 { "read": true, "write": true }\n3. 网络问题 → 检查网络连接');
+                                alert('❌ 上传失败：' + errMsg + '\n\n常见原因：\n1. CORS 跨域限制 → 去 CloudBase 控制台添加域名白名单\n2. 数据库权限不足 → 设置安全规则为 { "read": true, "write": true }\n3. 网络问题 → 检查网络连接');
+                                return;
                             }
-                        });
+                            
+                            // 从云端拉取（获取其他设备的更新）
+                            const pullResult = await loadDataFromCloud();
+                            if (pullResult) {
+                                if (typeof updateDashboard === 'function') updateDashboard();
+                                if (typeof renderInventoryTable === 'function') renderInventoryTable();
+                                if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                                if (typeof renderSellerVehicleTable === 'function') renderSellerVehicleTable();
+                            }
+                            
+                            // 确保轮询在运行
+                            startCloudPolling();
+                            
+                            alert('✅ 双向同步完成！数据已上传到云端并从云端获取了最新数据。');
+                        } catch (e) {
+                            alert('❌ 同步出错：' + e.message);
+                        } finally {
+                            cloudbaseSyncBtn.disabled = false;
+                            cloudbaseSyncBtn.innerHTML = '<i class="fa fa-refresh mr-1"></i>手动同步';
+                        }
                     });
                     console.log('CloudBase 同步按钮事件绑定成功');
                 }
