@@ -4583,6 +4583,8 @@
             
             try {
                 console.log('开始从 CloudBase 加载数据...');
+                // 🔑 加载本地最后保存时间戳（用于防止云端旧数据覆盖本地新删除）
+                const lastSaveTime = parseInt(localStorage.getItem('_truckLastSaveTime') || '0');
                 
                 // 从云端加载车辆数据
                 const vehiclesCollection = cloudbaseDb.collection('vehicles');
@@ -4595,15 +4597,32 @@
                 if (!vehiclesResult || !vehiclesResult.data) {
                     console.warn('从云端加载车辆数据返回空结果，可能是集合不存在或权限不足');
                 } else if (vehiclesResult.data.length > 0) {
-                    // 合并云端数据到本地（云端数据补充本地没有的，以本地为主）
+                    // 合并云端数据到本地（保留 _syncTime 用于判断数据新旧）
                     const cloudVehicles = vehiclesResult.data.map(doc => {
-                        const { _id, _syncTime, _source, ...vehicleData } = doc;
+                        const { _id, _source, ...vehicleData } = doc;
                         return vehicleData;
                     });
                     console.log('从云端加载车辆数据:', cloudVehicles.length, '条记录');
                     
+                    // ⏰ 防止云端旧数据覆盖本地新删除
+                    const localCurrentIds = new Set(mockData.vehicles.map(v => v.id));
+                    
+                    // 过滤：云端记录如果本地不存在且云端时间早于本地保存时间 → 本地已删，跳过
+                    const freshCloudVehicles = cloudVehicles.filter(cv => {
+                        if (localCurrentIds.has(cv.id)) return true; // 本地有 → 保留更新
+                        const syncTime = cv._syncTime ? new Date(cv._syncTime).getTime() : 0;
+                        if (lastSaveTime > 0 && lastSaveTime > syncTime) {
+                            console.log(`⏰ 跳过过期云端车辆（本地已删除后未同步完）: ${cv.id}`);
+                            return false;
+                        }
+                        return true; // 其他设备新增的 → 保留
+                    });
+                    if (freshCloudVehicles.length < cloudVehicles.length) {
+                        console.log(`⏰ 过滤掉 ${cloudVehicles.length - freshCloudVehicles.length} 条过期云端记录`);
+                    }
+                    
                     // 🔑 全新合并策略：云端为准，本地仅保留未同步的新增数据
-                    const cloudVehicleMap = new Map(cloudVehicles.map(v => [v.id, v]));
+                    const cloudVehicleMap = new Map(freshCloudVehicles.map(v => [v.id, v]));
                     const cloudIds = new Set(cloudVehicleMap.keys());
                     let deletedByOthers = 0;
                     let keptLocalNew = 0;
@@ -4621,14 +4640,14 @@
                     });
                     
                     // 2. 云端数据覆盖本地对应的（最新版本），并标记 _synced
-                    cloudVehicles.forEach(cv => { cv._synced = true; });
+                    freshCloudVehicles.forEach(cv => { cv._synced = true; });
                     
                     // 3. 合并：云端最新版 + 本地未同步新数据
-                    mockData.vehicles = [...cloudVehicles, ...survivingLocal];
+                    mockData.vehicles = [...freshCloudVehicles, ...survivingLocal];
                     
                     if (deletedByOthers > 0) console.log(`🗑️ 检测到其他设备共删除 ${deletedByOthers} 辆车`);
                     if (keptLocalNew > 0) console.log(`📝 保留本地未同步车辆 ${keptLocalNew} 辆`);
-                    console.log(`🔄 合并完成：云端 ${cloudVehicles.length} 辆 + 本地新 ${keptLocalNew} 辆 = 共 ${mockData.vehicles.length} 辆`);
+                    console.log(`🔄 合并完成：云端 ${freshCloudVehicles.length} 辆 + 本地新 ${keptLocalNew} 辆 = 共 ${mockData.vehicles.length} 辆`);
                 } else if (vehiclesResult && vehiclesResult.data) {
                     // 云端数据为空（被其他端口清空了）→ 清除本地已同步的数据
                     const beforeCount = mockData.vehicles.length;
@@ -4650,19 +4669,27 @@
                     console.warn('从云端加载交易数据返回空结果，可能是集合不存在或权限不足');
                 } else if (transactionsResult.data.length > 0) {
                     const cloudTransactions = transactionsResult.data.map(doc => {
-                        const { _id, _syncTime, _source, ...transactionData } = doc;
+                        const { _id, _source, ...transactionData } = doc;
                         return transactionData;
                     });
-                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
-                    const cloudTxIds = new Set(cloudTransactions.map(t => t.id));
-                    cloudTransactions.forEach(t => { t._synced = true; });
-                    const survivingLocalTx = mockData.transactions.filter(lt => {
-                        if (lt._synced === true && !cloudTxIds.has(lt.id)) return false; // 已同步但云端没有 → 被删除
-                        if (cloudTxIds.has(lt.id)) return false; // 云端有，用云端的
-                        return true; // 本地未同步的新数据
+                    // ⏰ 过滤过期云端交易（本地保存时间晚于云端同步时间 → 跳过）
+                    const localTxIds = new Set(mockData.transactions.map(t => t.id));
+                    const freshCloudTx = cloudTransactions.filter(t => {
+                        if (localTxIds.has(t.id)) return true;
+                        const syncTime = t._syncTime ? new Date(t._syncTime).getTime() : 0;
+                        if (lastSaveTime > 0 && lastSaveTime > syncTime) return false;
+                        return true;
                     });
-                    mockData.transactions = [...cloudTransactions, ...survivingLocalTx];
-                    console.log(`🔄 交易合并：云端 ${cloudTransactions.length} + 本地新 ${survivingLocalTx.length} = ${mockData.transactions.length} 条`);
+                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
+                    const cloudTxIds = new Set(freshCloudTx.map(t => t.id));
+                    freshCloudTx.forEach(t => { t._synced = true; });
+                    const survivingLocalTx = mockData.transactions.filter(lt => {
+                        if (lt._synced === true && !cloudTxIds.has(lt.id)) return false;
+                        if (cloudTxIds.has(lt.id)) return false;
+                        return true;
+                    });
+                    mockData.transactions = [...freshCloudTx, ...survivingLocalTx];
+                    console.log(`🔄 交易合并：云端 ${freshCloudTx.length} + 本地新 ${survivingLocalTx.length} = ${mockData.transactions.length} 条`);
                 } else if (transactionsResult && transactionsResult.data) {
                     const beforeCount = mockData.transactions.length;
                     mockData.transactions = mockData.transactions.filter(t => t._synced !== true);
@@ -4683,19 +4710,30 @@
                     console.warn('从云端加载待处理车辆数据返回空结果，可能是集合不存在或权限不足');
                 } else if (pendingResult.data.length > 0) {
                     const cloudPending = pendingResult.data.map(doc => {
-                        const { _id, _syncTime, _source, ...pendingData } = doc;
+                        const { _id, _source, ...pendingData } = doc;
                         return pendingData;
                     });
-                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
-                    const cloudPIds = new Set(cloudPending.map(p => p.id));
-                    cloudPending.forEach(p => { p._synced = true; });
-                    const survivingLocalPending = mockData.pendingVehicles.filter(lp => {
-                        if (lp._synced === true && !cloudPIds.has(lp.id)) return false; // 已同步但云端没有 → 被删除
-                        if (cloudPIds.has(lp.id)) return false; // 云端有，用云端的
-                        return true; // 本地未同步的新数据
+                    // ⏰ 过滤过期云端待处理（本地保存时间晚于云端同步时间 → 跳过）
+                    const localPIds = new Set(mockData.pendingVehicles.map(p => p.id));
+                    const freshCloudPending = cloudPending.filter(p => {
+                        if (localPIds.has(p.id)) return true;
+                        const syncTime = p._syncTime ? new Date(p._syncTime).getTime() : 0;
+                        if (lastSaveTime > 0 && lastSaveTime > syncTime) {
+                            console.log(`⏰ 跳过过期云端待处理车辆（本地已删除后未同步完）: ${p.id}`);
+                            return false;
+                        }
+                        return true;
                     });
-                    mockData.pendingVehicles = [...cloudPending, ...survivingLocalPending];
-                    console.log(`🔄 待处理合并：云端 ${cloudPending.length} + 本地新 ${survivingLocalPending.length} = ${mockData.pendingVehicles.length} 条`);
+                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
+                    const cloudPIds = new Set(freshCloudPending.map(p => p.id));
+                    freshCloudPending.forEach(p => { p._synced = true; });
+                    const survivingLocalPending = mockData.pendingVehicles.filter(lp => {
+                        if (lp._synced === true && !cloudPIds.has(lp.id)) return false;
+                        if (cloudPIds.has(lp.id)) return false;
+                        return true;
+                    });
+                    mockData.pendingVehicles = [...freshCloudPending, ...survivingLocalPending];
+                    console.log(`🔄 待处理合并：云端 ${freshCloudPending.length} + 本地新 ${survivingLocalPending.length} = ${mockData.pendingVehicles.length} 条`);
                 } else if (pendingResult && pendingResult.data) {
                     const beforeCount = mockData.pendingVehicles.length;
                     mockData.pendingVehicles = mockData.pendingVehicles.filter(p => p._synced !== true);
@@ -4727,19 +4765,19 @@
         const originalSaveDataToStorage = saveDataToStorage;
         saveDataToStorage = function() {
             const localResult = originalSaveDataToStorage();
-            // 数据变更时自动同步到云端
+            // 🔑 记录最后修改时间戳（用于防止云端旧数据覆盖本地新数据）
+            localStorage.setItem('_truckLastSaveTime', Date.now().toString());
+            // 数据变更时立即同步到云端（去掉延迟，防止刷新前没同步完）
             if (cloudbaseInitialized) {
-                setTimeout(() => {
-                    syncDataToCloud().then(success => {
-                        if (success) {
-                            console.log('✅ 数据已自动同步到云端');
-                        } else {
-                            console.warn('⚠️ 自动同步到云端失败，数据仅保存在本地');
-                        }
-                    }).catch(err => {
-                        console.error('自动同步异常:', err);
-                    });
-                }, 100);
+                syncDataToCloud().then(success => {
+                    if (success) {
+                        console.log('✅ 数据已自动同步到云端');
+                    } else {
+                        console.warn('⚠️ 自动同步到云端失败，数据仅保存在本地');
+                    }
+                }).catch(err => {
+                    console.error('自动同步异常:', err);
+                });
             }
             return localResult;
         };
