@@ -3819,6 +3819,29 @@
                     }
                 } catch (e) { console.warn('清理云端多余待处理车辆失败:', e.message); }
                 
+                // === 同步系统状态数据（累计搜寻、机器人数值等） ===
+                try {
+                    const systemData = {
+                        _id: 'main_state',
+                        buyerRobot: mockData.buyerRobot,
+                        sellerRobot: mockData.sellerRobot,
+                        dashboard: mockData.dashboard,
+                        systemStatus: mockData.systemStatus,
+                        _syncTime: new Date(),
+                        _source: 'truck_used_car_system'
+                    };
+                    const stateCollection = cloudbaseDb.collection('system_state');
+                    const existingState = await stateCollection.doc('main_state').get().catch(() => null);
+                    if (existingState && existingState.data && existingState.data.length > 0) {
+                        await stateCollection.doc('main_state').update(systemData);
+                    } else {
+                        await stateCollection.doc('main_state').set(systemData);
+                    }
+                    console.log('✅ 系统状态数据已同步（累计搜寻等）');
+                } catch (e) {
+                    console.warn('同步系统状态数据失败（非关键）:', e.message);
+                }
+                
                 // 总结
                 const totalCreated = vehiclesCreated + transactionsCreated + pendingCreated;
                 const totalUpdated = vehiclesUpdated + transactionsUpdated + pendingUpdated;
@@ -4172,6 +4195,24 @@
                     }
                 }
                 
+                // 检查并创建系统状态集合
+                try {
+                    const stateCollection = cloudbaseDb.collection('system_state');
+                    // 尝试读取看看集合是否存在
+                    await stateCollection.doc('main_state').get().catch(() => null);
+                    console.log('✅ 系统状态集合已可访问');
+                } catch (error) {
+                    console.log('系统状态集合可能不存在，尝试创建...');
+                    try {
+                        await cloudbaseDb.collection('system_state').doc('main_state').set({
+                            _test: true, _source: 'truck_used_car_system', _syncTime: new Date()
+                        });
+                        console.log('✅ 系统状态集合创建成功');
+                    } catch (writeError) {
+                        console.warn('⚠️ 无法创建系统状态集合:', writeError.message);
+                    }
+                }
+                
                 console.log('✅ CloudBase 数据库结构初始化完成');
                 return true;
             } catch (error) {
@@ -4497,6 +4538,31 @@
                     } else {
                         mockData.pendingVehicles = cloudPending;
                     }
+                }
+                
+                // 从云端加载系统状态数据（累计搜寻、机器人数值等）
+                try {
+                    const stateCollection = cloudbaseDb.collection('system_state');
+                    const stateResult = await stateCollection.doc('main_state').get().catch(() => null);
+                    if (stateResult && stateResult.data && stateResult.data.length > 0) {
+                        const systemState = stateResult.data[0];
+                        // 以云端数据为准更新状态（云端是最新同步的）
+                        if (systemState.buyerRobot) {
+                            mockData.buyerRobot = { ...mockData.buyerRobot, ...systemState.buyerRobot };
+                        }
+                        if (systemState.sellerRobot) {
+                            mockData.sellerRobot = { ...mockData.sellerRobot, ...systemState.sellerRobot };
+                        }
+                        if (systemState.dashboard) {
+                            mockData.dashboard = { ...mockData.dashboard, ...systemState.dashboard };
+                        }
+                        if (systemState.systemStatus) {
+                            mockData.systemStatus = { ...mockData.systemStatus, ...systemState.systemStatus };
+                        }
+                        console.log('✅ 已从云端加载系统状态（累计搜寻等）');
+                    }
+                } catch (e) {
+                    console.warn('加载系统状态数据失败（非关键）:', e.message);
                 }
                 
                 console.log('从 CloudBase 加载数据完成');
