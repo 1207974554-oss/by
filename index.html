@@ -3983,6 +3983,12 @@
                         console.log(`✅ 数据已成功同步到 CloudBase！总计: ${totalSynced} 条记录，新增: ${totalCreated} 条，更新: ${totalUpdated} 条`);
                     }
                     
+                    // 标记所有已同步到云端的数据（用于检测其他设备的删除操作）
+                    mockData.vehicles.forEach(v => v._synced = true);
+                    mockData.transactions.forEach(t => t._synced = true);
+                    mockData.pendingVehicles.forEach(p => p._synced = true);
+                    console.log('✅ 已标记本地数据为已同步状态');
+                    
                     return true;
                 } else {
                     console.log('❌ 数据同步失败，没有记录被同步');
@@ -4568,11 +4574,6 @@
             }
         }
 
-        // 追踪云端已知的 ID 集合（用于检测其他设备的删除操作）
-        let lastKnownCloudVehicleIds = new Set();
-        let lastKnownCloudTransactionIds = new Set();
-        let lastKnownCloudPendingIds = new Set();
-        
         // 从云端加载数据
         async function loadDataFromCloud() {
             if (!cloudbaseInitialized) {
@@ -4601,58 +4602,40 @@
                     });
                     console.log('从云端加载车辆数据:', cloudVehicles.length, '条记录');
                     
-                    // 以云端数据为准更新本地数据（云端是多设备同步后的最新版本）
-                    if (mockData.vehicles.length > 0) {
-                        const cloudMap = new Map(cloudVehicles.map(v => [v.id, v]));
-                        const localMap = new Map(mockData.vehicles.map(v => [v.id, v]));
-                        let addedCount = 0;
-                        let updatedCount = 0;
-                        
-                        // 用云端数据更新或新增
-                        cloudVehicles.forEach(cv => {
-                            if (localMap.has(cv.id)) {
-                                // 云端版本覆盖本地（云端是最新同步版本）
-                                const idx = mockData.vehicles.findIndex(v => v.id === cv.id);
-                                if (idx !== -1) {
-                                    mockData.vehicles[idx] = cv;
-                                    updatedCount++;
-                                }
-                            } else {
-                                // 本地没有的，新增
-                                mockData.vehicles.push(cv);
-                                addedCount++;
-                            }
-                        });
-                        
-                        // 本地独有的车辆也保留（可能是离线时新增的）
-                        const localOnly = mockData.vehicles.filter(v => !cloudMap.has(v.id));
-                        
-                        console.log(`云端合并：更新 ${updatedCount} 辆，新增 ${addedCount} 辆，本地独有 ${localOnly.length} 辆，合并后共 ${mockData.vehicles.length} 辆`);
-                    } else {
-                        // 本地没有数据时才直接使用云端数据
-                        mockData.vehicles = cloudVehicles;
-                        console.log('本地无数据，直接使用云端数据:', mockData.vehicles.length, '条记录');
-                    }
+                    // 🔑 全新合并策略：云端为准，本地仅保留未同步的新增数据
+                    const cloudVehicleMap = new Map(cloudVehicles.map(v => [v.id, v]));
+                    const cloudIds = new Set(cloudVehicleMap.keys());
+                    let deletedByOthers = 0;
+                    let keptLocalNew = 0;
                     
-                    // 🔑 检测其他设备删除：如果某车辆上次在云端、这次不在 → 说明被其他设备删了 → 从本地也删除
-                    if (lastKnownCloudVehicleIds.size > 0) {
-                        const newCloudIds = new Set(cloudVehicles.map(v => v.id));
-                        let removedCount = 0;
-                        for (const id of lastKnownCloudVehicleIds) {
-                            if (!newCloudIds.has(id)) {
-                                const idx = mockData.vehicles.findIndex(v => v.id === id);
-                                if (idx !== -1) {
-                                    mockData.vehicles.splice(idx, 1);
-                                    removedCount++;
-                                    console.log(`🗑️ 检测到其他设备删除，同步移除本地车辆: ${id}`);
-                                }
-                            }
+                    // 1. 找出本地中 _synced=true 但云端不存在的 → 被其他设备删了 → 丢弃
+                    const survivingLocal = mockData.vehicles.filter(lv => {
+                        if (cloudIds.has(lv.id)) return false; // 云端有，用云端的
+                        if (lv._synced === true) {
+                            deletedByOthers++;
+                            console.log(`🗑️ 云端已删除车辆，同步移除: ${lv.id}`);
+                            return false; // 已同步过但云端没了 → 被删了
                         }
-                        if (removedCount > 0) console.log(`🗑️ 同步删除共 ${removedCount} 辆车`);
-                        if (cloudVehicles.length === 0 && removedCount > 0) console.log('🔄 云端数据已被清空，本地同步清空');
+                        keptLocalNew++;
+                        return true; // 本地新增、尚未同步的数据，保留
+                    });
+                    
+                    // 2. 云端数据覆盖本地对应的（最新版本），并标记 _synced
+                    cloudVehicles.forEach(cv => { cv._synced = true; });
+                    
+                    // 3. 合并：云端最新版 + 本地未同步新数据
+                    mockData.vehicles = [...cloudVehicles, ...survivingLocal];
+                    
+                    if (deletedByOthers > 0) console.log(`🗑️ 检测到其他设备共删除 ${deletedByOthers} 辆车`);
+                    if (keptLocalNew > 0) console.log(`📝 保留本地未同步车辆 ${keptLocalNew} 辆`);
+                    console.log(`🔄 合并完成：云端 ${cloudVehicles.length} 辆 + 本地新 ${keptLocalNew} 辆 = 共 ${mockData.vehicles.length} 辆`);
+                } else if (vehiclesResult && vehiclesResult.data) {
+                    // 云端数据为空（被其他端口清空了）→ 清除本地已同步的数据
+                    const beforeCount = mockData.vehicles.length;
+                    mockData.vehicles = mockData.vehicles.filter(v => v._synced !== true);
+                    if (mockData.vehicles.length < beforeCount) {
+                        console.log(`🔄 云端数据已清空，同步移除本地 ${beforeCount - mockData.vehicles.length} 辆车`);
                     }
-                    // 更新云端 ID 追踪（云端为空时也要更新，标记为空）
-                    lastKnownCloudVehicleIds = new Set(cloudVehicles.map(v => v.id));
                 }
                 
                 // 从云端加载交易数据
@@ -4670,35 +4653,22 @@
                         const { _id, _syncTime, _source, ...transactionData } = doc;
                         return transactionData;
                     });
-                    // 按 ID 合并交易数据
-                    if (mockData.transactions.length > 0) {
-                        const cloudTxIds = new Set(cloudTransactions.map(t => t.id));
-                        const existingTxIds = new Set(mockData.transactions.map(t => t.id));
-                        // 云端有但本地没有的，补充进来
-                        const newTx = cloudTransactions.filter(t => !existingTxIds.has(t.id));
-                        // 保留本地独有的（离线新增）
-                        const localOnlyTx = mockData.transactions.filter(t => !cloudTxIds.has(t.id));
-                        mockData.transactions = [...cloudTransactions, ...localOnlyTx];
-                        if (newTx.length > 0) {
-                            console.log(`云端合并交易：新增 ${newTx.length} 条，合并后共 ${mockData.transactions.length} 条`);
-                        }
-                    } else {
-                        mockData.transactions = cloudTransactions;
+                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
+                    const cloudTxIds = new Set(cloudTransactions.map(t => t.id));
+                    cloudTransactions.forEach(t => { t._synced = true; });
+                    const survivingLocalTx = mockData.transactions.filter(lt => {
+                        if (lt._synced === true && !cloudTxIds.has(lt.id)) return false; // 已同步但云端没有 → 被删除
+                        if (cloudTxIds.has(lt.id)) return false; // 云端有，用云端的
+                        return true; // 本地未同步的新数据
+                    });
+                    mockData.transactions = [...cloudTransactions, ...survivingLocalTx];
+                    console.log(`🔄 交易合并：云端 ${cloudTransactions.length} + 本地新 ${survivingLocalTx.length} = ${mockData.transactions.length} 条`);
+                } else if (transactionsResult && transactionsResult.data) {
+                    const beforeCount = mockData.transactions.length;
+                    mockData.transactions = mockData.transactions.filter(t => t._synced !== true);
+                    if (mockData.transactions.length < beforeCount) {
+                        console.log(`🔄 云端交易已清空，同步移除本地 ${beforeCount - mockData.transactions.length} 条`);
                     }
-                    
-                    // 🔑 检测其他设备删除的交易
-                    if (lastKnownCloudTransactionIds.size > 0) {
-                        const newCloudTxIds = new Set(cloudTransactions.map(t => t.id));
-                        let removedTxCount = 0;
-                        for (const id of lastKnownCloudTransactionIds) {
-                            if (!newCloudTxIds.has(id)) {
-                                const idx = mockData.transactions.findIndex(t => t.id === id);
-                                if (idx !== -1) { mockData.transactions.splice(idx, 1); removedTxCount++; }
-                            }
-                        }
-                        if (removedTxCount > 0) console.log(`🗑️ 同步删除 ${removedTxCount} 条交易`);
-                    }
-                    lastKnownCloudTransactionIds = new Set(cloudTransactions.map(t => t.id));
                 }
                 
                 // 从云端加载待处理车辆数据
@@ -4716,33 +4686,22 @@
                         const { _id, _syncTime, _source, ...pendingData } = doc;
                         return pendingData;
                     });
-                    // 按 ID 合并待处理车辆数据
-                    if (mockData.pendingVehicles.length > 0) {
-                        const cloudPIds = new Set(cloudPending.map(p => p.id));
-                        const existingPIds = new Set(mockData.pendingVehicles.map(p => p.id));
-                        const newPending = cloudPending.filter(p => !existingPIds.has(p.id));
-                        const localOnlyPending = mockData.pendingVehicles.filter(p => !cloudPIds.has(p.id));
-                        mockData.pendingVehicles = [...cloudPending, ...localOnlyPending];
-                        if (newPending.length > 0) {
-                            console.log(`云端合并待处理：新增 ${newPending.length} 条，合并后共 ${mockData.pendingVehicles.length} 条`);
-                        }
-                    } else {
-                        mockData.pendingVehicles = cloudPending;
+                    // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
+                    const cloudPIds = new Set(cloudPending.map(p => p.id));
+                    cloudPending.forEach(p => { p._synced = true; });
+                    const survivingLocalPending = mockData.pendingVehicles.filter(lp => {
+                        if (lp._synced === true && !cloudPIds.has(lp.id)) return false; // 已同步但云端没有 → 被删除
+                        if (cloudPIds.has(lp.id)) return false; // 云端有，用云端的
+                        return true; // 本地未同步的新数据
+                    });
+                    mockData.pendingVehicles = [...cloudPending, ...survivingLocalPending];
+                    console.log(`🔄 待处理合并：云端 ${cloudPending.length} + 本地新 ${survivingLocalPending.length} = ${mockData.pendingVehicles.length} 条`);
+                } else if (pendingResult && pendingResult.data) {
+                    const beforeCount = mockData.pendingVehicles.length;
+                    mockData.pendingVehicles = mockData.pendingVehicles.filter(p => p._synced !== true);
+                    if (mockData.pendingVehicles.length < beforeCount) {
+                        console.log(`🔄 云端待处理已清空，同步移除本地 ${beforeCount - mockData.pendingVehicles.length} 条`);
                     }
-                    
-                    // 🔑 检测其他设备删除的待处理车辆
-                    if (lastKnownCloudPendingIds.size > 0) {
-                        const newCloudPIds = new Set(cloudPending.map(p => p.id));
-                        let removedPCount = 0;
-                        for (const id of lastKnownCloudPendingIds) {
-                            if (!newCloudPIds.has(id)) {
-                                const idx = mockData.pendingVehicles.findIndex(p => p.id === id);
-                                if (idx !== -1) { mockData.pendingVehicles.splice(idx, 1); removedPCount++; }
-                            }
-                        }
-                        if (removedPCount > 0) console.log(`🗑️ 同步删除 ${removedPCount} 条待处理车辆`);
-                    }
-                    lastKnownCloudPendingIds = new Set(cloudPending.map(p => p.id));
                 }
                 
                 // 同步 buyerRobot.vehicleList 与 pendingVehicles（确保一致）
