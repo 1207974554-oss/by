@@ -2503,6 +2503,17 @@
                                     保存并连接
                                 </button>
                             </div>
+                            <div class="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                                <p class="text-xs text-green-700 mb-2">💡 换设备？复制配置到新设备一键连接：</p>
+                                <div class="flex space-x-2">
+                                    <button type="button" id="cloudbase-copy-config-btn" class="flex-1 px-3 py-1.5 text-xs bg-green-500 text-white rounded hover:bg-green-600">
+                                        📋 复制配置到剪贴板
+                                    </button>
+                                    <button type="button" id="cloudbase-paste-config-btn" class="flex-1 px-3 py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">
+                                        📥 粘贴配置
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2636,6 +2647,63 @@
                     } catch (error) {
                         console.error('绑定保存按钮事件监听器失败:', error);
                     }
+                }
+                
+                // 复制配置按钮
+                const copyConfigBtn = modal.querySelector('#cloudbase-copy-config-btn');
+                if (copyConfigBtn) {
+                    copyConfigBtn.addEventListener('click', function() {
+                        const envId = document.getElementById('cloudbase-env-id').value.trim();
+                        const accessKey = document.getElementById('cloudbase-access-key').value.trim();
+                        const region = document.getElementById('cloudbase-region').value;
+                        if (!envId || !accessKey) {
+                            alert('请先填写环境ID和发布密钥');
+                            return;
+                        }
+                        const configStr = btoa(JSON.stringify({ envId, accessKey, region }));
+                        navigator.clipboard.writeText(configStr).then(() => {
+                            alert('✅ 配置已复制！\n\n在另一台设备打开此页面 → 系统设置 → CloudBase配置 → 点击"粘贴配置"即可。');
+                        }).catch(() => {
+                            // fallback: show in a modal
+                            prompt('请复制以下配置码，在新设备上粘贴：', configStr);
+                        });
+                    });
+                }
+                
+                // 粘贴配置按钮
+                const pasteConfigBtn = modal.querySelector('#cloudbase-paste-config-btn');
+                if (pasteConfigBtn) {
+                    pasteConfigBtn.addEventListener('click', async function() {
+                        try {
+                            const text = await navigator.clipboard.readText();
+                            const config = JSON.parse(atob(text));
+                            if (config.envId && config.accessKey) {
+                                document.getElementById('cloudbase-env-id').value = config.envId;
+                                document.getElementById('cloudbase-access-key').value = config.accessKey;
+                                if (config.region) document.getElementById('cloudbase-region').value = config.region;
+                                alert('✅ 配置已粘贴！请点击"保存并连接"。');
+                            } else {
+                                alert('❌ 剪贴板内容不是有效的配置');
+                            }
+                        } catch (e) {
+                            const code = prompt('请粘贴从其他设备复制的配置码：');
+                            if (code) {
+                                try {
+                                    const config = JSON.parse(atob(code));
+                                    if (config.envId && config.accessKey) {
+                                        document.getElementById('cloudbase-env-id').value = config.envId;
+                                        document.getElementById('cloudbase-access-key').value = config.accessKey;
+                                        if (config.region) document.getElementById('cloudbase-region').value = config.region;
+                                        alert('✅ 配置已粘贴！请点击"保存并连接"。');
+                                    } else {
+                                        alert('❌ 配置码无效');
+                                    }
+                                } catch (e2) {
+                                    alert('❌ 配置码格式错误');
+                                }
+                            }
+                        }
+                    });
                 }
 
                 if (checkEnvBtn) {
@@ -2924,6 +2992,51 @@
                     } catch (error) {
                         console.error('重新绑定保存按钮事件监听器失败:', error);
                     }
+                }
+                
+                // 复制/粘贴配置按钮（复用模态框时也绑定）
+                const copyConfigBtn2 = modal.querySelector('#cloudbase-copy-config-btn');
+                const pasteConfigBtn2 = modal.querySelector('#cloudbase-paste-config-btn');
+                if (copyConfigBtn2 && !copyConfigBtn2.hasAttribute('data-event-bound')) {
+                    copyConfigBtn2.setAttribute('data-event-bound', 'true');
+                    copyConfigBtn2.addEventListener('click', function() {
+                        const envId = document.getElementById('cloudbase-env-id').value.trim();
+                        const accessKey = document.getElementById('cloudbase-access-key').value.trim();
+                        const region = document.getElementById('cloudbase-region').value;
+                        if (!envId || !accessKey) { alert('请先填写环境ID和发布密钥'); return; }
+                        const configStr = btoa(JSON.stringify({ envId, accessKey, region }));
+                        navigator.clipboard.writeText(configStr).then(() => {
+                            alert('✅ 配置已复制！在另一台设备打开此页面 → 系统设置 → CloudBase配置 → 点击"粘贴配置"。');
+                        }).catch(() => { prompt('请复制以下配置码：', configStr); });
+                    });
+                }
+                if (pasteConfigBtn2 && !pasteConfigBtn2.hasAttribute('data-event-bound')) {
+                    pasteConfigBtn2.setAttribute('data-event-bound', 'true');
+                    pasteConfigBtn2.addEventListener('click', async function() {
+                        try {
+                            const text = await navigator.clipboard.readText();
+                            const config = JSON.parse(atob(text));
+                            if (config.envId && config.accessKey) {
+                                document.getElementById('cloudbase-env-id').value = config.envId;
+                                document.getElementById('cloudbase-access-key').value = config.accessKey;
+                                if (config.region) document.getElementById('cloudbase-region').value = config.region;
+                                alert('✅ 配置已粘贴！请点击"保存并连接"。');
+                            } else { alert('❌ 剪贴板内容无效'); }
+                        } catch (e) {
+                            const code = prompt('请粘贴从其他设备复制的配置码：');
+                            if (code) {
+                                try {
+                                    const config = JSON.parse(atob(code));
+                                    if (config.envId && config.accessKey) {
+                                        document.getElementById('cloudbase-env-id').value = config.envId;
+                                        document.getElementById('cloudbase-access-key').value = config.accessKey;
+                                        if (config.region) document.getElementById('cloudbase-region').value = config.region;
+                                        alert('✅ 配置已粘贴！请点击"保存并连接"。');
+                                    }
+                                } catch (e2) { alert('❌ 配置码格式错误'); }
+                            }
+                        }
+                    });
                 }
 
                 if (checkEnvBtn && !checkEnvBtn.hasAttribute('data-event-bound')) {
@@ -3819,12 +3932,10 @@
                     }
                 } catch (e) { console.warn('清理云端多余待处理车辆失败:', e.message); }
                 
-                // === 同步系统状态数据（累计搜寻、机器人数值等） ===
+                // === 同步系统状态数据（仅同步 dashboard 和 systemStatus，buyerRobot/sellerRobot 基于实际数据动态计算） ===
                 try {
                     const systemData = {
                         _id: 'main_state',
-                        buyerRobot: mockData.buyerRobot,
-                        sellerRobot: mockData.sellerRobot,
                         dashboard: mockData.dashboard,
                         systemStatus: mockData.systemStatus,
                         _syncTime: new Date(),
@@ -3837,7 +3948,7 @@
                     } else {
                         await stateCollection.doc('main_state').set(systemData);
                     }
-                    console.log('✅ 系统状态数据已同步（累计搜寻等）');
+                    console.log('✅ 系统状态数据已同步（仪表板计数等）');
                 } catch (e) {
                     console.warn('同步系统状态数据失败（非关键）:', e.message);
                 }
@@ -4540,30 +4651,10 @@
                     }
                 }
                 
-                // 从云端加载系统状态数据（累计搜寻、机器人数值等）
-                try {
-                    const stateCollection = cloudbaseDb.collection('system_state');
-                    const stateResult = await stateCollection.doc('main_state').get().catch(() => null);
-                    if (stateResult && stateResult.data && stateResult.data.length > 0) {
-                        const systemState = stateResult.data[0];
-                        // 以云端数据为准更新状态（云端是最新同步的）
-                        if (systemState.buyerRobot) {
-                            mockData.buyerRobot = { ...mockData.buyerRobot, ...systemState.buyerRobot };
-                        }
-                        if (systemState.sellerRobot) {
-                            mockData.sellerRobot = { ...mockData.sellerRobot, ...systemState.sellerRobot };
-                        }
-                        if (systemState.dashboard) {
-                            mockData.dashboard = { ...mockData.dashboard, ...systemState.dashboard };
-                        }
-                        if (systemState.systemStatus) {
-                            mockData.systemStatus = { ...mockData.systemStatus, ...systemState.systemStatus };
-                        }
-                        console.log('✅ 已从云端加载系统状态（累计搜寻等）');
-                    }
-                } catch (e) {
-                    console.warn('加载系统状态数据失败（非关键）:', e.message);
-                }
+                // 同步 buyerRobot.vehicleList 与 pendingVehicles（确保一致）
+                mockData.buyerRobot.vehicleList = [...mockData.pendingVehicles];
+                mockData.buyerRobot.filteredVehicles = mockData.pendingVehicles.length;
+                console.log('✅ 已同步 buyerRobot.vehicleList 与 pendingVehicles，共', mockData.pendingVehicles.length, '辆');
                 
                 console.log('从 CloudBase 加载数据完成');
                 return true;
@@ -5612,8 +5703,8 @@
             );
             const uniqueSoldVehicleIds = [...new Set(validSalesTransactions.map(t => t.vehicleId).filter(id => id))];
             const actualSoldCount = uniqueSoldVehicleIds.length;
-            // 计算待采购车辆数量（buyerRobot中的车辆）
-            const actualPendingCount = mockData.buyerRobot.vehicleList.length;
+            // 计算待采购车辆数量（pendingVehicles，与云端同步）
+            const actualPendingCount = mockData.pendingVehicles.length;
             // 计算销售金额（从交易记录中获取销售总额，确保与图表数据一致）
             const actualSalesAmount = validSalesTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
             
@@ -6845,7 +6936,8 @@
             const recommendedEl = document.getElementById('buyer-robot-recommended');
             
             if (totalSearchedEl) {
-                totalSearchedEl.textContent = mockData.buyerRobot.vehicleList.length;
+                // 累计已搜寻基于 pendingVehicles（云端同步）
+                totalSearchedEl.textContent = mockData.pendingVehicles.length;
             }
             
             if (todaySearchedEl) {
@@ -9807,6 +9899,8 @@
             // 只导入非重复数据
             if (uniqueNewVehicles.length > 0) {
                 mockData.buyerRobot.vehicleList = [...mockData.buyerRobot.vehicleList, ...uniqueNewVehicles];
+                // 同步到 pendingVehicles（与云端同步的数组保持一致）
+                mockData.pendingVehicles = [...mockData.pendingVehicles, ...uniqueNewVehicles];
                 mockData.buyerRobot.filteredVehicles = mockData.buyerRobot.vehicleList.length;
                 console.log('导入完成后车辆列表长度:', mockData.buyerRobot.vehicleList.length, '所有车辆ID:', mockData.buyerRobot.vehicleList.map(v => v.id));
                 try {
@@ -10280,6 +10374,8 @@
                     // 追加去重后的数据到现有车辆列表
                     if (buyerUniqueVehicles.length > 0) {
                         mockData.buyerRobot.vehicleList = [...mockData.buyerRobot.vehicleList, ...buyerUniqueVehicles];
+                        // 同步到 pendingVehicles
+                        mockData.pendingVehicles = [...mockData.pendingVehicles, ...buyerUniqueVehicles];
                         mockData.buyerRobot.filteredVehicles = mockData.buyerRobot.vehicleList.length;
                     }
                     console.log('importData buyer: 导入车辆列表长度:', mockData.buyerRobot.vehicleList.length, '所有车辆ID:', mockData.buyerRobot.vehicleList.map(v => v.id));
