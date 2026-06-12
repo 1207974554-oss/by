@@ -5693,6 +5693,7 @@
             
             // 重置采购机器人车辆列表
             mockData.buyerRobot.vehicleList = [];
+            mockData.pendingVehicles = []; // 🔑 同步清空 pendingVehicles
             mockData.buyerRobot.filteredVehicles = 0;
             mockData.buyerRobot.evaluatedVehicles = 0;
             mockData.buyerRobot.totalSearched = 0;
@@ -9168,11 +9169,17 @@
             };
             mockData.transactions.push(inventoryTransaction);
             
-            // 不再从采购员机器人车辆列表中移除该车辆，确保车辆信息保留在今日/搜寻数据中
-            // 但可以标记车辆已加入库存，避免重复操作
+            // 标记车辆已入库，避免重复操作
             const purchaseVehicleInList = mockData.buyerRobot.vehicleList.find(v => v.id === purchaseVehicle.id);
             if (purchaseVehicleInList) {
                 purchaseVehicleInList.addedToInventory = true;
+            }
+            
+            // 🔑 关键修复：同步从 pendingVehicles 中移除已入库的车辆
+            const pendingIndex = mockData.pendingVehicles.findIndex(v => v.id === purchaseVehicle.id);
+            if (pendingIndex !== -1) {
+                mockData.pendingVehicles.splice(pendingIndex, 1);
+                console.log('车辆已从 pendingVehicles 中移除（已入库）:', purchaseVehicle.id);
             }
             
             // 将车辆ID添加到最近添加列表，用于高亮显示
@@ -14373,6 +14380,13 @@ function addNewVehicle() {
                         if (vehicleIndex !== -1) {
                             mockData.buyerRobot.vehicleList.splice(vehicleIndex, 1);
                             console.log('采购记录已删除，车辆ID:', vehicleId);
+                            
+                            // 🔑 关键修复：同步删除 pendingVehicles（因为云端同步的是 pendingVehicles）
+                            const pendingIndex = mockData.pendingVehicles.findIndex(v => v.id == vehicleId);
+                            if (pendingIndex !== -1) {
+                                mockData.pendingVehicles.splice(pendingIndex, 1);
+                                console.log('pendingVehicles 同步删除，车辆ID:', vehicleId);
+                            }
                             
                             // 重新渲染采购员机器人表格
                             renderBuyerRobotTable();
