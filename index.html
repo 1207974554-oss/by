@@ -4187,6 +4187,42 @@
                 console.log('自动同步已停止');
             }
         }
+        
+        // 云端轮询（只读，每30秒检查云端是否有新数据，自动拉取到本地）
+        let cloudPollTimer = null;
+        let cloudPollEnabled = true;
+        function startCloudPolling() {
+            if (!cloudbaseInitialized) return;
+            if (cloudPollTimer) clearInterval(cloudPollTimer);
+            console.log('🔄 启动云端数据轮询（每30秒检查更新）');
+            cloudPollTimer = setInterval(async () => {
+                if (!cloudbaseInitialized || !cloudPollEnabled) return;
+                try {
+                    const beforeVehicleCount = mockData.vehicles.length;
+                    const beforePendingCount = mockData.pendingVehicles.length;
+                    await loadDataFromCloud();
+                    const afterVehicleCount = mockData.vehicles.length;
+                    const afterPendingCount = mockData.pendingVehicles.length;
+                    if (beforeVehicleCount !== afterVehicleCount || beforePendingCount !== afterPendingCount) {
+                        console.log('🔄 检测到云端数据更新，刷新界面');
+                        updateDashboardCounts();
+                        syncDataToUI();
+                        saveDataToStorage();
+                        if (typeof renderInventoryTable === 'function') renderInventoryTable();
+                        if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                        if (typeof renderSellerVehicleTable === 'function') renderSellerVehicleTable();
+                    }
+                } catch (e) {
+                    // 静默失败，不打扰用户
+                }
+            }, 30000);
+        }
+        function stopCloudPolling() {
+            if (cloudPollTimer) {
+                clearInterval(cloudPollTimer);
+                cloudPollTimer = null;
+            }
+        }
 
         // 初始化 CloudBase 数据库结构（确保集合存在）
         async function initCloudbaseDatabase() {
@@ -4778,8 +4814,8 @@
                                         if (typeof renderInventoryTable === 'function') renderInventoryTable();
                                         if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
                                         
-                                        // 自动同步已关闭，不再自动启动（仅支持手动同步）
-                                        // startAutoSync();
+                                        // 启动云端轮询（只读，检测其他设备的更新）
+                                        startCloudPolling();
                                     }
                                 } catch (e) {
                                     console.error('数据库初始化或数据加载失败:', e);
@@ -4807,8 +4843,8 @@
                                                 if (typeof renderInventoryTable === 'function') renderInventoryTable();
                                                 if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
                                                 
-                                                // 自动同步已关闭，不再自动启动（仅支持手动同步）
-                                                // startAutoSync();
+                                                // 启动云端轮询
+                                                startCloudPolling();
                                             }
                                         } catch (e) {
                                             console.error('数据加载失败:', e);
