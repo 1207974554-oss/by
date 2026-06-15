@@ -713,6 +713,7 @@
                                     <table class="min-w-full divide-y divide-gray-200">
                                         <thead>
                                             <tr>
+                                                <th class="px-3 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">搜寻时间</th>
                                                 <th class="px-3 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">车辆信息</th>
                                                 <th class="px-3 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">价格</th>
                                                 <th class="px-3 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">操作</th>
@@ -3691,18 +3692,20 @@
 
         // 云端同步锁（防止 syncDataToCloud 和 loadDataFromCloud 并发竞争）
         let cloudSyncInProgress = false;
-        let cloudLoadInProgress = false; // 已存在，复用
+        let cloudLoadInProgress = false;
+        let cloudSyncQueued = false; // 是否有挂起的同步请求
         
         // 同步数据到云端
         async function syncDataToCloud() {
             if (!cloudbaseInitialized) {
                 console.log('CloudBase 未初始化，无法同步数据到云端');
-                console.warn('CloudBase 未初始化，请先配置并连接 CloudBase');
                 return false;
             }
-            if (cloudLoadInProgress) {
-                console.log('⏳ 正在从云端加载数据，跳过本次同步（避免竞争）');
-                return false;
+            // 🔑 如果轮询正在加载，先等待它完成（防止把旧数据拉回来覆盖删除）
+            let waitCount = 0;
+            while (cloudLoadInProgress && waitCount < 50) {
+                await new Promise(r => setTimeout(r, 200));
+                waitCount++;
             }
             
             try {
@@ -4776,6 +4779,12 @@
                 return false;
             } finally {
                 cloudLoadInProgress = false;
+                // 🔑 如果同步被排队，轮询完成后自动执行
+                if (cloudSyncQueued) {
+                    cloudSyncQueued = false;
+                    console.log('🔄 检测到挂起的同步请求，轮询完成后自动执行...');
+                    setTimeout(() => syncDataToCloud(), 100);
+                }
             }
         }
 
@@ -7196,13 +7205,20 @@
                     }
                 });
                 
-                // 计算建议采购车辆数量（状态为"采购建议生成"的车辆）
-                const recommendedCount = vehicleList.filter(v => v.status === '采购建议生成').length;
+                // 计算建议采购车辆数量（与表格筛选逻辑完全一致）
+                const recommendedCount = vehicleList.filter(v => {
+                    try { return isVehicleRecommended(v); }
+                    catch(e) { return false; }
+                }).length;
                 
                 // 更新仪表盘显示
                 if (buyerFilteredEl) buyerFilteredEl.textContent = filteredCount + ' 辆';
                 if (buyerEvaluatedEl) buyerEvaluatedEl.textContent = todayCount + ' 辆';
                 if (buyerRecommendedEl) buyerRecommendedEl.textContent = recommendedCount + ' 辆';
+                
+                // 同时更新采购员机器人页面的建议采购车辆卡片数字（#buyer-robot-recommended）
+                const buyerRobotRecommendedEl = document.getElementById('buyer-robot-recommended');
+                if (buyerRobotRecommendedEl) buyerRobotRecommendedEl.textContent = recommendedCount;
                 
                 // 更新进度条宽度
                 const buyerFilteredProgress = document.querySelector('.buyer-filtered-progress');
@@ -7212,6 +7228,10 @@
                 if (buyerFilteredProgress) buyerFilteredProgress.style.width = Math.min(100, filteredCount) + '%';
                 if (buyerEvaluatedProgress) buyerEvaluatedProgress.style.width = Math.min(100, todayCount) + '%';
                 if (buyerRecommendedProgress) buyerRecommendedProgress.style.width = Math.min(100, recommendedCount) + '%';
+                
+                // 同步更新采购员机器人页面的建议采购进度条
+                const buyerRobotRecommendedProgress = document.querySelector('.buyer-recommended-progress');
+                if (buyerRobotRecommendedProgress) buyerRobotRecommendedProgress.style.width = Math.min(100, recommendedCount) + '%';
                 
                 // 更新mockData中的字段，确保其他部分使用最新数据
                 mockData.buyerRobot.filteredVehicles = filteredCount;
@@ -9868,7 +9888,7 @@
         }
 
         // 导入到采购机器人
-        function importToBuyerRobot(data) {
+        async function importToBuyerRobot(data) {
             try {
                 console.log('importToBuyerRobot被调用，数据长度:', data?.length || 0);
                 if (!data || !Array.isArray(data)) {
@@ -10012,23 +10032,64 @@
                 }
             });
             
-            // 如果有重复项，提示用户确认
+            // 如果有重复项，使用自定义模态框提示用户确认
             if (duplicateCount > 0) {
-                let duplicateExamples = '';
-                if (duplicateVehicles.length > 0) {
-                    const examples = duplicateVehicles.slice(0, 3).map(v => `${v.brand || '未知品牌'} ${v.model || '未知型号'}`).join('、');
-                    duplicateExamples = `\n重复示例：${examples}`;
-                    if (duplicateVehicles.length > 3) {
-                        duplicateExamples += ` 等 ${duplicateCount} 条`;
-                    }
+                // 构建重复数据详情列表
+                let duplicateListHtml = '';
+                duplicateVehicles.slice(0, 10).forEach(v => {
+                    const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
+                    const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                    duplicateListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-red-50 rounded mb-2">
+                        <span class="text-sm text-gray-800 truncate flex-1 mr-3" title="${title}">${title}</span>
+                        <span class="text-sm font-medium text-red-600 whitespace-nowrap">${price}</span>
+                    </div>`;
+                });
+                if (duplicateVehicles.length > 10) {
+                    duplicateListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${duplicateVehicles.length - 10} 条重复数据</div>`;
                 }
                 
-                const confirmMessage = `检测到 ${duplicateCount} 条重复数据（基于品牌、型号、年份、里程判断）。\n是否继续导入？重复数据将被跳过，只导入 ${uniqueNewVehicles.length} 条新数据。${duplicateExamples}`;
+                const confirmed = await new Promise(resolve => {
+                    const modalOverlay = document.createElement('div');
+                    modalOverlay.id = 'duplicate-confirm-modal';
+                    modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]';
+                    modalOverlay.innerHTML = `
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div class="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
+                                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    检测到重复数据
+                                </h3>
+                            </div>
+                            <div class="p-6">
+                                <p class="text-gray-700 mb-4">
+                                    共检测到 <span class="font-bold text-red-600 text-lg">${duplicateCount}</span> 条重复数据，
+                                    将被跳过不导入。
+                                    <span class="font-bold text-green-600">${uniqueNewVehicles.length}</span> 条新数据将正常导入。
+                                </p>
+                                <div class="mb-4">
+                                    <p class="text-xs text-gray-500 mb-2">重复数据列表：</p>
+                                    <div class="max-h-48 overflow-y-auto border border-red-200 rounded-lg p-2">
+                                        ${duplicateListHtml}
+                                    </div>
+                                </div>
+                                <div class="flex gap-3 justify-end">
+                                    <button id="dup-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">取消导入</button>
+                                    <button id="dup-confirm-btn" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md">确认导入（跳过重复）</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modalOverlay);
+                    
+                    document.getElementById('dup-cancel-btn').onclick = () => { modalOverlay.remove(); resolve(false); };
+                    document.getElementById('dup-confirm-btn').onclick = () => { modalOverlay.remove(); resolve(true); };
+                    modalOverlay.onclick = (e) => { if (e.target === modalOverlay) { modalOverlay.remove(); resolve(false); } };
+                });
                 
-                if (!confirm(confirmMessage)) {
+                if (!confirmed) {
                     console.log('用户取消导入重复数据');
                     showNotification(`导入已取消，检测到 ${duplicateCount} 条重复数据`, 'warning');
-                    return; // 取消导入
+                    return;
                 }
                 
                 console.log(`用户确认导入，跳过 ${duplicateCount} 条重复数据，导入 ${uniqueNewVehicles.length} 条新数据`);
@@ -10195,7 +10256,7 @@
         }
 
         // 导入数据
-        function importData(type, data) {
+        async function importData(type, data) {
             try {
                 console.log('importData被调用，类型:', type, '数据长度:', data?.length || 0);
                 if (!data || !Array.isArray(data)) {
@@ -10487,54 +10548,122 @@
                         }
                     });
                     
-                    // 如果有重复项，提示用户确认
+                    // 如果有重复项，提示用户确认（使用自定义模态框）
                     if (buyerDuplicateCount > 0) {
-                        let duplicateExamples = '';
-                        if (buyerDuplicateVehicles.length > 0) {
-                            const examples = buyerDuplicateVehicles.slice(0, 3).map(v => `${v.brand || '未知品牌'} ${v.model || '未知型号'}`).join('、');
-                            duplicateExamples = `\n重复示例：${examples}`;
-                            if (buyerDuplicateVehicles.length > 3) {
-                                duplicateExamples += ` 等 ${buyerDuplicateCount} 条`;
+                        // 构建重复数据详情列表
+                        let duplicateListHtml = '';
+                        buyerDuplicateVehicles.slice(0, 10).forEach(v => {
+                            const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
+                            const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                            duplicateListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-red-50 rounded mb-2">
+                                <span class="text-sm text-gray-800 truncate flex-1 mr-3" title="${title}">${title}</span>
+                                <span class="text-sm font-medium text-red-600 whitespace-nowrap">${price}</span>
+                            </div>`;
+                        });
+                        if (buyerDuplicateVehicles.length > 10) {
+                            duplicateListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${buyerDuplicateVehicles.length - 10} 条重复数据</div>`;
+                        }
+                        
+                        // 创建自定义模态框
+                        const modalOverlay = document.createElement('div');
+                        modalOverlay.id = 'duplicate-confirm-modal';
+                        modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]';
+                        modalOverlay.innerHTML = `
+                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                <div class="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
+                                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        检测到重复数据
+                                    </h3>
+                                </div>
+                                <div class="p-6">
+                                    <p class="text-gray-700 mb-4">
+                                        共检测到 <span class="font-bold text-red-600 text-lg">${buyerDuplicateCount}</span> 条重复数据，
+                                        将被跳过不导入。
+                                        <span class="font-bold text-green-600">${buyerUniqueVehicles.length}</span> 条新数据将正常导入。
+                                    </p>
+                                    <div class="mb-4">
+                                        <p class="text-xs text-gray-500 mb-2">重复数据列表：</p>
+                                        <div class="max-h-48 overflow-y-auto border border-red-200 rounded-lg p-2">
+                                            ${duplicateListHtml}
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-3 justify-end">
+                                        <button id="duplicate-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                                            取消导入
+                                        </button>
+                                        <button id="duplicate-confirm-btn" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md">
+                                            确认导入（跳过重复）
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modalOverlay);
+                        
+                        // 使用 Promise 等待用户选择
+                        await new Promise(resolve => {
+                            document.getElementById('duplicate-cancel-btn').onclick = () => {
+                                modalOverlay.remove();
+                                resolve(false);
+                            };
+                            document.getElementById('duplicate-confirm-btn').onclick = () => {
+                                modalOverlay.remove();
+                                resolve(true);
+                            };
+                            // 点击遮罩关闭=取消
+                            modalOverlay.onclick = (e) => {
+                                if (e.target === modalOverlay) {
+                                    modalOverlay.remove();
+                                    resolve(false);
+                                }
+                            };
+                        }).then(confirmed => {
+                            if (!confirmed) {
+                                console.log('用户取消导入重复数据');
+                                showNotification(`导入已取消，检测到 ${buyerDuplicateCount} 条重复数据`, 'warning');
+                                return;
                             }
+                            
+                            console.log(`用户确认导入，跳过 ${buyerDuplicateCount} 条重复数据，导入 ${buyerUniqueVehicles.length} 条唯一数据`);
+                            
+                            // 继续执行导入逻辑...
+                            continueBuyerImport();
+                        });
+                    } else {
+                        // 无重复，直接导入
+                        continueBuyerImport();
+                    }
+                    
+                    // 继续导入的内部函数（去重后的实际执行逻辑）
+                    function continueBuyerImport() {
+                        // 追加去重后的数据到现有车辆列表
+                        if (buyerUniqueVehicles.length > 0) {
+                            mockData.buyerRobot.vehicleList = [...mockData.buyerRobot.vehicleList, ...buyerUniqueVehicles];
+                            // 同步到 pendingVehicles
+                            mockData.pendingVehicles = [...mockData.pendingVehicles, ...buyerUniqueVehicles];
+                            mockData.buyerRobot.filteredVehicles = mockData.buyerRobot.vehicleList.length;
+                        }
+                        console.log('importData buyer: 导入车辆列表长度:', mockData.buyerRobot.vehicleList.length, '所有车辆ID:', mockData.buyerRobot.vehicleList.map(v => v.id));
+                        
+                        // 保存数据到本地存储
+                        try {
+                            saveDataToStorage();
+                        } catch (storageError) {
+                            console.warn('保存数据到本地存储时发生错误，但数据已成功添加到内存中:', storageError);
                         }
                         
-                        const confirmMessage = `检测到 ${buyerDuplicateCount} 条重复数据（基于品牌、型号、年份、里程判断）。\n是否继续导入？重复数据将被跳过，只导入 ${buyerUniqueVehicles.length} 条唯一数据。${duplicateExamples}`;
-                        
-                        if (!confirm(confirmMessage)) {
-                            console.log('用户取消导入重复数据');
-                            showNotification(`导入已取消，检测到 ${buyerDuplicateCount} 条重复数据`, 'warning');
-                            return; // 取消整个导入操作
+                        // 重新渲染采购员机器人表格
+                        try {
+                            renderBuyerRobotTable();
+                        } catch (renderError) {
+                            console.warn('重新渲染采购员机器人表格时发生错误，但数据已成功导入:', renderError);
                         }
                         
-                        console.log(`用户确认导入，跳过 ${buyerDuplicateCount} 条重复数据，导入 ${buyerUniqueVehicles.length} 条唯一数据`);
+                        // 更新成功通知中的数量为实际导入数量
+                        const actualImportedCount = buyerUniqueVehicles.length;
+                        data = buyerUniqueVehicles; // 更新data变量，用于后续成功通知
                     }
-                    
-                    // 追加去重后的数据到现有车辆列表
-                    if (buyerUniqueVehicles.length > 0) {
-                        mockData.buyerRobot.vehicleList = [...mockData.buyerRobot.vehicleList, ...buyerUniqueVehicles];
-                        // 同步到 pendingVehicles
-                        mockData.pendingVehicles = [...mockData.pendingVehicles, ...buyerUniqueVehicles];
-                        mockData.buyerRobot.filteredVehicles = mockData.buyerRobot.vehicleList.length;
-                    }
-                    console.log('importData buyer: 导入车辆列表长度:', mockData.buyerRobot.vehicleList.length, '所有车辆ID:', mockData.buyerRobot.vehicleList.map(v => v.id));
-                    
-                    // 保存数据到本地存储
-                    try {
-                        saveDataToStorage();
-                    } catch (storageError) {
-                        console.warn('保存数据到本地存储时发生错误，但数据已成功添加到内存中:', storageError);
-                    }
-                    
-                    // 重新渲染采购员机器人表格
-                    try {
-                        renderBuyerRobotTable();
-                    } catch (renderError) {
-                        console.warn('重新渲染采购员机器人表格时发生错误，但数据已成功导入:', renderError);
-                    }
-                    
-                    // 更新成功通知中的数量为实际导入数量
-                    const actualImportedCount = buyerUniqueVehicles.length;
-                    data = buyerUniqueVehicles; // 更新data变量，用于后续成功通知
                     
                     break;
                 }
@@ -12882,8 +13011,24 @@ function renderBuyerRobotTable() {
         filteredList = mockData.buyerRobot.vehicleList.filter(vehicle => isVehicleToday(vehicle));
         console.log(`今日模式，筛选后车辆数: ${filteredList.length}`);
     } else if (buyerRobotFilterMode === 'recommended') {
-        filteredList = mockData.buyerRobot.vehicleList.filter(vehicle => isVehicleRecommended(vehicle));
-        console.log(`推荐模式，筛选后车辆数: ${filteredList.length}`);
+        filteredList = mockData.buyerRobot.vehicleList.filter(vehicle => {
+            try { return isVehicleRecommended(vehicle); }
+            catch (e) { console.warn('isVehicleRecommended 异常:', vehicle?.id, e); return false; }
+        });
+        console.log(`推荐模式, 总车辆: ${mockData.buyerRobot.vehicleList.length}, 筛选后: ${filteredList.length}`);
+        
+        // 同时输出每辆车的推荐结果用于调试
+        if (filteredList.length === 0 && mockData.buyerRobot.vehicleList.length > 0) {
+            console.warn('推荐模式下无匹配车辆，逐个检查:');
+            mockData.buyerRobot.vehicleList.slice(0, 5).forEach(v => {
+                try {
+                    const result = isVehicleRecommended(v);
+                    console.log(`  ID=${v.id}, 推荐=${result}`);
+                } catch(e) {
+                    console.log(`  ID=${v.id}, 异常: ${e.message}`);
+                }
+            });
+        }
     }
     
     const totalItems = filteredList.length;
@@ -12894,7 +13039,20 @@ function renderBuyerRobotTable() {
     }
     const startIndex = (buyerRobotCurrentPage - 1) * itemsPerPage;
     const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-    const displayData = filteredList.slice(startIndex, endIndex);
+    // 全局按搜寻时间降序排列（最新在前），再分页
+    const sortedList = [...filteredList].sort((a, b) => {
+        const getTime = (v) => {
+            if (v.filterDate) return new Date(v.filterDate).getTime();
+            if (v.createdAt) return new Date(v.createdAt).getTime();
+            if (v.importTime) return new Date(v.importTime).getTime();
+            if (v.addedAt) return new Date(v.addedAt).getTime();
+            if (v.importDate) return new Date(v.importDate).getTime();
+            return 0;
+        };
+        return getTime(b) - getTime(a); // 降序：b - a
+    });
+    
+    const displayData = sortedList.slice(startIndex, endIndex);
     
     displayData.forEach((vehicle, index) => {
         if (!vehicle.id) {
@@ -12936,7 +13094,14 @@ function renderBuyerRobotTable() {
         const typeDisplay = vehicleType ? vehicleType + (horsepower ? ` ${horsepower}` : '') : '';
         const extraInfo = [typeDisplay, dateDisplay].filter(Boolean).join(' | ');
         
+        // 搜寻时间：优先使用 filterDate，其次使用 createdAt 或 importTime
+        const searchTime = filterDate || vehicle.createdAt || vehicle.importTime || vehicle.addedAt || '';
+        const searchTimeDisplay = searchTime ? (typeof searchTime === 'string' ? searchTime : new Date(searchTime).toLocaleString('zh-CN')) : '-';
+        
         tr.innerHTML = `
+            <td class="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
+                <span class="text-gray-600" title="${searchTimeDisplay}">${searchTimeDisplay}</span>
+            </td>
             <td class="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
                 <div class="flex items-center gap-2">
                     <span class="font-medium truncate" title="${vehicleTitle}" style="max-width: 280px;">${vehicleTitle}</span>
@@ -13113,67 +13278,86 @@ function isVehicleToday(vehicle) {
 
 // 判断车辆是否被推荐采购
 function isVehicleRecommended(vehicle) {
-    // 使用与仪表盘相同的逻辑判断车辆是否被推荐
+    // 建议采购指标（共9项），符合45%以上（≥4项）则推荐
     if (!vehicle || !vehicle.originalData) {
-        console.log('车辆数据不完整，不推荐:', vehicle?.id);
         return false;
     }
     
-    const invalidValues = ['无', '未提及', '未知', '', null, undefined];
     const dataToShow = vehicle.originalData?.originalRow || vehicle.originalData || {};
     
-    let filterDate = '';
-    let vehicleTitle = '';
-    let vehicleType = '';
-    let registrationDate = '';
-    let horsepower = '';
-    let price = '';
-    let contact = '';
-    let description = '';
-    let videoUrl = '';
-    
+    // 拼接所有文本内容用于关键词匹配（包含标题、描述等所有字段）
+    let allText = '';
     for (const key in dataToShow) {
-        if (!filterDate && (key.includes('筛选日期') || key.includes('筛选'))) {
-            filterDate = dataToShow[key] || '';
-        }
-        if (!vehicleTitle && (key.includes('车辆标题') || key.includes('标题'))) {
-            vehicleTitle = dataToShow[key] || '';
-        }
-        if (!vehicleType && (key.includes('车辆类型') || key.includes('品类'))) {
-            vehicleType = dataToShow[key] || '';
-        }
-        if (!registrationDate && (key.includes('上牌时间') || key.includes('年限'))) {
-            registrationDate = dataToShow[key] || '';
-        }
-        if (!horsepower && (key.includes('马力') || key.includes('车型'))) {
-            horsepower = dataToShow[key] || '';
-        }
-        if (!price && (key.includes('报价') || key.includes('价格'))) {
-            price = dataToShow[key] || '';
-        }
-        if (!contact && (key.includes('联系方式') || key.includes('电话') || key.includes('微信'))) {
-            contact = dataToShow[key] || '';
-        }
-        if (!description && (key.includes('车辆描述摘要') || key.includes('描述'))) {
-            description = dataToShow[key] || '';
-        }
-        if (!videoUrl && (key.includes('原视频链接') || key.includes('视频链接') || key.includes('视频'))) {
-            videoUrl = dataToShow[key] || '';
+        allText += String(dataToShow[key] || '') + ' ';
+    }
+    if (vehicle.brand) allText += vehicle.brand + ' ';
+    if (vehicle.model) allText += vehicle.model + ' ';
+    if (vehicle.condition) allText += vehicle.condition + ' ';
+    // 也加上车辆对象上的额外字段
+    if (vehicle.title || vehicle.vehicleTitle) allText += (vehicle.title || vehicle.vehicleTitle) + ' ';
+    
+    allText = allText.toLowerCase();
+    
+    let matchCount = 0;
+    let details = [];
+    
+    // 1. 危货车 / 危险品车辆（放宽匹配）
+    if (/危货|危险品.*车|危险品运输|危险品.*牵引/.test(allText)) { matchCount++; details.push('危货/危险品车'); }
+    
+    // 2. 国六排放标准
+    if (/国六|国6|国ⅵ|欧六|euro\s*6/.test(allText)) { matchCount++; details.push('国六'); }
+    
+    // 3. 燃气车 / LNG / CNG
+    if (/燃气|lng|l\.n\.g|cng|天然气|气体|气牵|气.*牵引/.test(allText)) { matchCount++; details.push('燃气车'); }
+    
+    // 4. 牵引车类型
+    if (/牵引车|牵引|半挂|挂车|头.*半/.test(allText)) { matchCount++; details.push('牵引车'); }
+    
+    // 5. 较新车龄（21年及以后，大幅放宽）
+    let yearMatched = false;
+    const yearFields = [dataToShow['上牌时间'], dataToShow['年限'], dataToShow['上牌时间/年限'], vehicle.year];
+    for (const yr of yearFields) {
+        if (yr !== undefined && yr !== null && String(yr).trim()) {
+            const yearNumMatch = String(yr).match(/(20\d{2})/);
+            if (yearNumMatch && parseInt(yearNumMatch[1]) >= 2021) {
+                yearMatched = true; break;
+            }
         }
     }
+    if (yearMatched) { matchCount++; details.push('较新车龄'); }
     
-    const allFieldsValid = !invalidValues.includes(filterDate) &&
-                           !invalidValues.includes(vehicleTitle) &&
-                           !invalidValues.includes(vehicleType) &&
-                           !invalidValues.includes(registrationDate) &&
-                           !invalidValues.includes(horsepower) &&
-                           !invalidValues.includes(price) &&
-                           !invalidValues.includes(contact) &&
-                           !invalidValues.includes(description) &&
-                           !invalidValues.includes(videoUrl);
+    // 6. 不锈钢罐体材质
+    if (/316l?|不锈钢罐|不锈钢|铝罐/.test(allText)) { matchCount++; details.push('不锈钢罐'); }
     
-    console.log(`车辆推荐检查: ID=${vehicle.id}, 有效字段=${allFieldsValid}, filterDate=${filterDate}, title=${vehicleTitle}`);
-    return allFieldsValid;
+    // 7. 危险品类别资质（任意类别都算）
+    if (/[一二三四五六七八九]类.*[危险化]|[危险化].*[一二三四五六七八九]类|危险品|危化品|普货.*危|危.*运/.test(allText)) { matchCount++; details.push('危化品资质'); }
+    
+    // 8. 高马力（350马力以上，继续放宽）
+    let hpMatched = false;
+    const hpFields = [dataToShow['马力'], dataToShow['马力/车型'], dataToShow['车型'], vehicle.horsepower];
+    for (const hp of hpFields) {
+        if (hp !== undefined && hp !== null && String(hp).trim()) {
+            const hpMatch = String(hp).match(/(\d+)\s*马力?/);
+            if (hpMatch && parseInt(hpMatch[1]) >= 350) {
+                hpMatched = true; break;
+            }
+        }
+    }
+    if (hpMatched) { matchCount++; details.push(`${hpMatched?'高马力':'低马力'}`); }
+    
+    // 9. 低里程（20万公里以内，无信息也算通过）
+    let mileageOk = true;
+    const mileFields = [dataToShow['里程'], dataToShow['行驶里程'], vehicle.mileage];
+    for (const m of mileFields) {
+        if (m !== undefined && m !== null && String(m).trim()) {
+            const mNum = parseFloat(String(m).replace(/[^\d.]/g, ''));
+            if (!isNaN(mNum) && mNum > 20) { mileageOk = false; }
+        }
+    }
+    if (mileageOk) { matchCount++; details.push('低里程'); }
+    
+    const pass = matchCount >= Math.ceil(9 * 0.45); // 45% → ≥4项
+    return pass;
 }
 
 // 添加新车辆（打开编辑模态框）
@@ -13433,6 +13617,8 @@ function addNewVehicle() {
                         buyerRobotFilterMode = 'recommended';
                         buyerRobotCurrentPage = 1;
                         renderBuyerRobotTable();
+                        // 同步更新仪表盘数字，确保一致
+                        if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
                     }
                     
                     // 销售机器人状态卡片和筛选按钮点击
