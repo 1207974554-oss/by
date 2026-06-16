@@ -4831,7 +4831,7 @@
                         
                         if (localMatch) {
                             // 本地和云端都有 → 比较 _syncTime 保留最新
-                            localProcessedIds.add(lv.id);
+                            localProcessedIds.add(localMatch.id);
                             const cloudTime = cv._syncTime ? new Date(cv._syncTime).getTime() : 0;
                             const localTime = localMatch._syncTime ? new Date(localMatch._syncTime).getTime() : 0;
                             
@@ -6160,17 +6160,6 @@
             // 计算销售金额（从交易记录中获取销售总额）
             const allSalesTransactions = mockData.transactions.filter(t => t.type === '销售');
             const actualSalesAmount = allSalesTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
-            
-            // 验证数据一致性（可选，用于调试）
-            const salesAmountFromVehicles = mockData.vehicles
-                .filter(v => v.status === '已售出')
-                .reduce((sum, vehicle) => sum + (vehicle.sellingPrice || 0), 0);
-            if (Math.abs(actualSalesAmount - salesAmountFromVehicles) > 100) {
-                console.warn('销售金额不一致:', {
-                    fromTransactions: actualSalesAmount,
-                    fromVehicles: salesAmountFromVehicles,
-                });
-            }
             
             // 更新仪表板数据
             mockData.dashboard.inventoryCount = actualInventoryCount;
