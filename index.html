@@ -7082,19 +7082,17 @@
                 }
             });
             
-            // 计算今日销售数量（基于交易记录，按车辆ID去重，只计算车辆仍然存在的交易）
+            // 计算今日销售数量（基于车辆状态，与已售车辆数为子集关系）
             const today = new Date();
             const todayString = today.toLocaleDateString('zh-CN');
-            const existingVehicleIds = new Set(mockData.vehicles.map(v => v.id));
-            const todaySalesTransactions = mockData.transactions.filter(t => 
-                t.type === '销售' && 
-                t.date && 
-                new Date(t.date).toLocaleDateString('zh-CN') === todayString &&
-                t.vehicleId && existingVehicleIds.has(t.vehicleId)
-            );
-            // 按车辆ID去重，避免同一辆车多条交易记录重复计数
-            const todaySoldVehicleIds = [...new Set(todaySalesTransactions.map(t => t.vehicleId))];
-            const todaySalesCount = todaySoldVehicleIds.length;
+            const todaySalesCount = mockData.vehicles.filter(v => {
+                if (v.status !== '已售出') return false;
+                if (!v.soldDate) return false;
+                let date;
+                if (v.soldDate instanceof Date) date = v.soldDate;
+                else date = new Date(v.soldDate);
+                return date.toLocaleDateString('zh-CN') === todayString;
+            }).length;
             
             // 更新销售机器人数据字段
             mockData.sellerRobot.inquiriesCount = inquiriesCount;
@@ -8710,8 +8708,11 @@
             // 同步数据到UI
             syncDataToUI();
             
-            // 保存数据到本地存储
+            // 保存数据到本地存储并同步到云端（确保状态不丢失）
             saveDataToStorage();
+            if (cloudbaseInitialized) {
+                syncDataToCloud().catch(e => console.warn('同步已售出状态到云端失败:', e.message));
+            }
             
             console.log('车辆标记为已售出:', vehicle.id, '品牌:', vehicle.brand, '型号:', vehicle.model);
             notify(`车辆 ${vehicle.brand} ${vehicle.model} 已标记为已售出`, 'success');
