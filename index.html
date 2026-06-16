@@ -3783,9 +3783,9 @@
                     const pushResult = await syncDataToCloud();
                     console.log('  推送结果:', pushResult ? '成功' : '失败');
                     
-                    // 2. 再从云端 pull 其他设备的数据（合并不覆盖）
-                    console.log('2. 从云端拉取最新数据（合并模式）...');
-                    const pullResult = await mergeDataFromCloud();
+                    // 2. 再从云端 pull 其他设备的数据（全量同步）
+                    console.log('2. 从云端拉取最新数据（全量同步）...');
+                    const pullResult = await loadDataFromCloud();
                     console.log('  拉取结果:', pullResult ? '成功' : '失败');
                     
                     // 3. 刷新界面
@@ -4395,10 +4395,13 @@
                 try {
                     const beforeVehicleCount = mockData.vehicles.length;
                     const beforePendingCount = mockData.pendingVehicles.length;
-                    await mergeDataFromCloud(); // 合并不覆盖
+                    const beforeTransactionCount = mockData.transactions.length;
+                    await loadDataFromCloud(); // 🔑 全量同步（vehicles + transactions + pending），替换原先的 mergeDataFromCloud
+                    const afterVehicleCount = mockData.vehicles.length;
                     const afterPendingCount = mockData.pendingVehicles.length;
-                    if (beforeVehicleCount !== afterVehicleCount || beforePendingCount !== afterPendingCount) {
-                        console.log('🔄 检测到云端数据更新，刷新界面');
+                    const afterTransactionCount = mockData.transactions.length;
+                    if (beforeVehicleCount !== afterVehicleCount || beforePendingCount !== afterPendingCount || beforeTransactionCount !== afterTransactionCount) {
+                        console.log('🔄 检测到云端数据更新 (vehicles: '+beforeVehicleCount+'→'+afterVehicleCount+', pending: '+beforePendingCount+'→'+afterPendingCount+', tx: '+beforeTransactionCount+'→'+afterTransactionCount+')');
                         updateDashboardCounts();
                         syncDataToUI();
                         originalSaveDataToStorage(); // 🔑 只存本地，不回写（防止把别人删的数据又写回云端）
@@ -4903,7 +4906,7 @@
                     });
                     // ⏰ 过滤过期云端待处理（本地保存时间晚于云端同步时间 → 跳过）
                     const localPIds = new Set(mockData.pendingVehicles.map(p => p.id));
-                    const freshCloudPending = cloudPending.filter(p => {
+                    let freshCloudPending = cloudPending.filter(p => {
                         if (localPIds.has(p.id)) return true;
                         const syncTime = p._syncTime ? new Date(p._syncTime).getTime() : 0;
                         if (lastSaveTime > 0 && lastSaveTime > syncTime) {
@@ -4911,8 +4914,7 @@
                             return false;
                         }
                         return true;
-                                        return true;
-                        });
+                    });
                     // 🔑 低符合率关键词过滤（防止无关车型从云端混入）
                     const lowMatchKws = getLowMatchKeywords();
                     const beforeLowFilter = freshCloudPending.length;
@@ -5024,154 +5026,6 @@
             return 0;
         }
 
-        async function mergeDataFromCloud() {
-            if (!cloudbaseInitialized) {
-                console.log('CloudBase 未初始化，跳过云端合并');
-                return false;
-            }
-            
-            try {
-                console.log('=== 开始合并云端数据（安全模式：只增不减）===');
-                
-                const localBuyerIds = new Set(mockData.buyerRobot.vehicleList.map(v => v.id));
-                let addedCount = 0;
-                
-                // 从云端加载待处理车辆（buyerRobot数据）
-                const pendingCollection = cloudbaseDb.collection('pending_vehicles');
-                const pendingResult = await pendingCollection
-                    .where({ _source: 'truck_used_car_system' })
-                    .get();
-                
-                if (pendingResult && pendingResult.data && pendingResult.data.length > 0) {
-                    const cloudPending = pendingResult.data.map(doc => {
-                        const { _id, _syncTime, _source, ...pData } = doc;
-                        pData._cloudId = _id;
-                        pData._synced = true;
-                        return pData;
-                    });
-                    
-                    // 第一步：过滤掉ID已存在的
-                    // 跳过ID已存在的 + 已被用户手动删除的记录
-                    const idUnique = cloudPending.filter(cv => !localBuyerIds.has(cv.id) && !deletedCloudIds.has(cv.id));
-                    
-                    // 第二步：基于内容去重（使用Jaccard词组相似度，阈值70%）
-                    function getVehicleText(v) {
-                        let t = '';
-                        for (const k in v) { if (typeof v[k] === 'string') t += v[k] + ' '; }
-                        return t.trim().toLowerCase();
-                    }
-                    function jaccardSimilar(s1, s2) {
-                        if (!s1 || !s2) return 0;
-                        if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return 1;
-                        const split = (t) => t.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2);
-                        const w1 = new Set(split(s1)), w2 = new Set(split(s2));
-                        if (w1.size === 0 || w2.size === 0) return 0;
-                        let inter = 0; w1.forEach(w => { if (w2.has(w)) inter++; });
-                        return inter / (w1.size + w2.size - inter);
-                    }
-                    
-                    const existingTexts = mockData.buyerRobot.vehicleList.map(v => getVehicleText(v));
-                    const newVehicles = [];
-                    let skippedByContent = 0;
-                    
-                    // 🔑 第三步：低符合率关键词过滤（防止云端无关车型混入采购列表）
-                    const LOW_MATCH_KEYWORDS = getLowMatchKeywords();
-                    const lowMatchFiltered = [];
-                    let skippedByLowMatch = 0;
-                    
-                    for (const cv of idUnique) {
-                        const row = cv.originalData?.originalRow || cv.originalData || {};
-                        const title = row['车辆标题'] || cv.brand || cv.model || '';
-                        const type = row['车辆类型'] || row['品类'] || '';
-                        const allText = (title + ' ' + type + ' ' + Object.values(row).join(' ')).toLowerCase();
-                        
-                        let isLowMatch = false;
-                        for (const kw of LOW_MATCH_KEYWORDS) {
-                            if (allText.includes(kw.toLowerCase())) {
-                                isLowMatch = true;
-                                break;
-                            }
-                        }
-                        
-                        if (isLowMatch) {
-                            skippedByLowMatch++;
-                        } else {
-                            lowMatchFiltered.push(cv);
-                        }
-                    }
-                    
-                    if (skippedByLowMatch > 0) {
-                        console.log(`🚫 云端合并：过滤低符合率车型 ${skippedByLowMatch} 条`);
-                    }
-                    
-                    // 第四步：内容相似度去重
-                    for (const cv of lowMatchFiltered) {
-                        const cvText = getVehicleText(cv);
-                        let isDuplicate = false;
-                        
-                        for (const exText of existingTexts) {
-                            if (jaccardSimilar(cvText, exText) >= 0.7) {
-                                isDuplicate = true;
-                                skippedByContent++;
-                                break;
-                            }
-                        }
-                        
-                        // 也检查本次待加入的列表内部是否有重复
-                        if (!isDuplicate) {
-                            for (const nv of newVehicles) {
-                                if (jaccardSimilar(cvText, getVehicleText(nv)) >= 0.7) {
-                                    isDuplicate = true;
-                                    skippedByContent++;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (!isDuplicate) {
-                            newVehicles.push(cv);
-                            existingTexts.push(cvText); // 防止后续重复
-                        }
-                    }
-                    
-                    if (skippedByContent > 0) {
-                        console.log(`⚠️ 云端合并：因内容相似(≥70%)跳过 ${skippedByContent} 条重复数据`);
-                    }
-                    
-                    if (newVehicles.length > 0) {
-                        mockData.buyerRobot.vehicleList.push(...newVehicles);
-                        mockData.pendingVehicles.push(...newVehicles);
-                        addedCount += newVehicles.length;
-                        console.log(`📥 从云端合并 ${newVehicles.length} 条新车辆到本地（本地原有 ${localBuyerIds.size} 条）`);
-                    } else {
-                        console.log(`☑️ 云端无新增数据，本地 ${localBuyerIds.size} 条全部保留`);
-                    }
-                } else {
-                    console.log('☑️ 云端待处理车辆为空或查询失败，本地数据不受影响');
-                }
-                
-                console.log(`=== 云端合并完成: 本地共 ${mockData.buyerRobot.vehicleList.length} 条 (新增${addedCount}) ===`);
-                
-                // 自动清理现有数据中的重复项
-                const beforeDedup = mockData.buyerRobot.vehicleList.length;
-                deduplicateVehicleList();
-                const afterDedup = mockData.buyerRobot.vehicleList.length;
-                if (afterDedup < beforeDedup) {
-                    console.log(`🧹 自动去重：从 ${beforeDedup} 条清理到 ${afterDedup} 条（移除 ${beforeDedup - afterDedup} 条重复）`);
-                    saveDataToStorage();
-                    addedCount += (beforeDedup - afterDedup); // 标记为有变更
-                }
-                
-                if (addedCount > 0) {
-                    saveDataToStorage();
-                }
-                
-                return true;
-            } catch (error) {
-                console.warn('合并云端数据失败（不影响本地数据）:', error.message);
-                return false;
-            }
-        }
 
         // 修改保存数据函数，当用户操作导致数据变更时自动同步到云端
         const originalSaveDataToStorage = saveDataToStorage;
@@ -5198,31 +5052,18 @@
         const originalLoadDataFromStorage = loadDataFromStorage;
         loadDataFromStorage = function() {
             const localResult = originalLoadDataFromStorage();
-            // 始终从云端加载最新数据，确保多台电脑协同工作
+            // 始终从云端全量同步最新数据（vehicles + transactions + pending），确保多台电脑协同工作
             if (cloudbaseInitialized && !cloudLoadInProgress) {
-                cloudLoadInProgress = true;
-                setTimeout(() => {
-                    mergeDataFromCloud().then(success => {
-                        if (success) {
-                            console.log('✅ 已从云端同步最新数据，更新界面');
-                            // 同步完成后保存合并结果到本地
-                            originalSaveDataToStorage();
-                            // 更新界面显示
-                            if (typeof updateDashboard === 'function') {
-                                updateDashboard();
-                            }
-                            if (typeof renderInventoryTable === 'function') {
-                                renderInventoryTable();
-                            }
-                            if (typeof renderBuyerRobotTable === 'function') {
-                                renderBuyerRobotTable();
-                            }
-                            if (typeof renderSellerVehicleTable === 'function') {
-                                renderSellerVehicleTable();
-                            }
-                        }
-                        cloudLoadInProgress = false;
-                    });
+                setTimeout(async () => {
+                    const success = await loadDataFromCloud(); // 🔑 全量同步，替换原先的 mergeDataFromCloud
+                    if (success) {
+                        console.log('✅ 已从云端同步最新数据，更新界面');
+                        updateDashboardCounts();
+                        syncDataToUI();
+                        if (typeof renderInventoryTable === 'function') renderInventoryTable();
+                        if (typeof renderBuyerRobotTable === 'function') renderBuyerRobotTable();
+                        if (typeof renderSellerVehicleTable === 'function') renderSellerVehicleTable();
+                    }
                 }, 500);
             }
             return localResult;
@@ -5271,7 +5112,7 @@
                                     
                                     // 然后自动从云端加载数据（合并不覆盖）
                                     console.log('开始从云端加载数据（合并模式）...');
-                                    const success = await mergeDataFromCloud();
+                                    const success = await loadDataFromCloud();
                                     if (success) {
                                         console.log('云端数据加载成功，更新界面...');
                                         // 更新所有相关界面
@@ -5300,7 +5141,7 @@
                                     console.log('CloudBase初始化成功，开始从云端加载数据...');
                                     setTimeout(async () => {
                                         try {
-                                            const success = await mergeDataFromCloud();
+                                            const success = await loadDataFromCloud();
                                             if (success) {
                                                 console.log('云端数据加载成功，更新界面...');
                                                 // 更新所有相关界面
@@ -5362,7 +5203,7 @@
                             }
                             
                             // 从云端拉取（获取其他设备的更新，合并不覆盖）
-                            const pullResult = await mergeDataFromCloud();
+                            const pullResult = await loadDataFromCloud();
                             if (pullResult) {
                                 if (typeof updateDashboard === 'function') updateDashboard();
                                 if (typeof renderInventoryTable === 'function') renderInventoryTable();
