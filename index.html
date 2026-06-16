@@ -1120,7 +1120,7 @@
                         </div>
                         
                         <!-- 方式三：直接输入数据 -->
-                        <div class="bg-white rounded-lg shadow p-4 mb-6">
+                        <div class="bg-white rounded-lg shadow p-4 mb-6 hidden">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                                 <i class="fa fa-keyboard-o text-primary mr-2"></i>
                                 方式三：直接输入数据
@@ -1206,8 +1206,7 @@
                                 <div class="grid grid-cols-1 gap-6">
                                     <div>
                                         <h4 class="text-base font-medium text-gray-700 mb-3">数据管理</h4>
-                                        <p class="text-sm text-gray-500 mb-3">所有数据均存储在您的电脑本地，确保数据安全可控。</p>
-                                        <div class="space-y-4">
+                                        <div class="space-y-4 hidden">
                                             <div>
                                                 <label for="backup-frequency" class="block text-sm text-gray-600 mb-1">数据备份频率</label>
                                                 <select id="backup-frequency" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" aria-label="数据备份频率">
@@ -1242,6 +1241,73 @@
                                                 </button>
                                             </div>
                                             <input type="file" id="import-data-file" class="hidden" accept=".json">
+                                        </div>
+
+                                        <!-- 低符合率车型关键词管理 -->
+                                            <div class="border-t border-gray-200 pt-4 mt-4">
+                                                <h5 class="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                                    <i class="fas fa-filter text-yellow-500"></i>低符合率车型检测关键词
+                                                    <span class="text-xs text-gray-400 font-normal">（导入时自动过滤搅拌车、平板等非重卡类型）</span>
+                                                </h5>
+                                                <div class="mb-3">
+                                                    <div class="flex gap-2 mb-2">
+                                                        <input type="text" id="lowmatch-keyword-input" 
+                                                            class="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" 
+                                                            placeholder="输入关键词，回车添加">
+                                                        <button type="button" id="add-lowmatch-keyword-btn" 
+                                                            class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors text-sm font-medium">
+                                                            <i class="fas fa-plus mr-1"></i>添加
+                                                        </button>
+                                                    </div>
+                                                    <div id="lowmatch-keywords-tags" class="flex flex-wrap gap-2 min-h-[36px] p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                                        <span class="text-xs text-gray-400">加载中...</span>
+                                                    </div>
+                                                    <div class="flex gap-2 mt-2">
+                                                        <button type="button" id="reset-lowmatch-keywords-btn" 
+                                                            class="px-3 py-1.5 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300 transition-colors">
+                                                            <i class="fas fa-undo mr-1"></i>恢复默认
+                                                        </button>
+                                                        <button type="button" id="save-lowmatch-keywords-btn" 
+                                                            class="px-3 py-1.5 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors">
+                                                            <i class="fas fa-check mr-1"></i>保存关键词
+                                                        </button>
+                                                    </div>
+                                                    <p class="text-xs text-gray-400 mt-1">提示：点击标签上的 × 可删除，关键词修改后需点击「保存关键词」生效。</p>
+                                                </div>
+                                                
+                                                <!-- 建议采购关键词管理 -->
+                                                <div>
+                                                    <h5 class="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                                        <i class="fas fa-star text-green-500"></i>建议采购关键词
+                                                        <span class="text-xs text-gray-400 font-normal">（匹配≥80%即列为建议采购）</span>
+                                                    </h5>
+                                                    <div class="mb-3">
+                                                        <div class="flex gap-2 mb-2">
+                                                            <input type="text" id="recommend-keyword-input" 
+                                                                class="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" 
+                                                                placeholder="输入关键词，回车添加">
+                                                            <button type="button" id="add-recommend-keyword-btn" 
+                                                                class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm font-medium">
+                                                                <i class="fas fa-plus mr-1"></i>添加
+                                                            </button>
+                                                        </div>
+                                                        <div id="recommend-keywords-tags" class="flex flex-wrap gap-2 min-h-[36px] p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                                            <span class="text-xs text-gray-400">加载中...</span>
+                                                        </div>
+                                                        <div class="flex gap-2 mt-2">
+                                                            <button type="button" id="reset-recommend-keywords-btn" 
+                                                                class="px-3 py-1.5 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300 transition-colors">
+                                                                <i class="fas fa-undo mr-1"></i>恢复默认
+                                                            </button>
+                                                            <button type="button" id="save-recommend-keywords-btn" 
+                                                                class="px-3 py-1.5 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors">
+                                                                <i class="fas fa-check mr-1"></i>保存关键词
+                                                            </button>
+                                                        </div>
+                                                        <p class="text-xs text-gray-400 mt-1">提示：关键词匹配不区分大小写，建议使用简短核心词（如"国六"而非"国六排放标准"）。</p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             
                                             <!-- 备份状态和手动备份 -->
                                             <div class="border-t border-gray-200 pt-4 mt-4">
@@ -1298,7 +1364,6 @@
                                                 <p class="text-xs text-gray-500">CloudBase 是腾讯云提供的云开发平台，支持数据实时同步</p>
                                             </div>
                                             
-                                        </div>
                                     </div>
                                     <div>
                                         <h4 class="text-base font-medium text-gray-700 mb-3">通知设置</h4>
@@ -2276,6 +2341,69 @@
             },
             confirmedPurchases: []
         };
+
+        // === 低符合率车型关键词管理 ===
+        const LOW_MATCH_KEYWORDS_STORAGE_KEY = 'truckSystemLowMatchKeywords';
+        const DEFAULT_LOW_MATCH_KEYWORDS = ['搅拌车', '搅拌', '沥青罐', '储存罐', '平板', '游艇', '挖掘机', '飞翼', '高栏', '自卸', '自卸车', '水泥车', '水泥罐', '油罐车', '洒水车', '垃圾车', '清障车', '随车吊', '泵车', '加油车', '爆破车', '8吨油罐', '展示', '求购'];
+
+        // 获取当前低符合率关键词（优先读取用户自定义，其次默认值）
+        function getLowMatchKeywords() {
+            try {
+                const saved = localStorage.getItem(LOW_MATCH_KEYWORDS_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                console.warn('读取低符合率关键词失败，使用默认值:', e);
+            }
+            return [...DEFAULT_LOW_MATCH_KEYWORDS];
+        }
+
+        // 保存低符合率关键词到 localStorage
+        function saveLowMatchKeywords(keywords) {
+            if (!Array.isArray(keywords)) return false;
+            localStorage.setItem(LOW_MATCH_KEYWORDS_STORAGE_KEY, JSON.stringify(keywords));
+            return true;
+        }
+
+        // 重置低符合率关键词为默认值
+        function resetLowMatchKeywords() {
+            localStorage.removeItem(LOW_MATCH_KEYWORDS_STORAGE_KEY);
+            return [...DEFAULT_LOW_MATCH_KEYWORDS];
+        }
+
+        // === 建议采购关键词管理 ===
+        const RECOMMENDED_KEYWORDS_STORAGE_KEY = 'truckSystemRecommendedKeywords';
+        const DEFAULT_RECOMMENDED_KEYWORDS = ['危货', '危险品', '国六', '国6', '燃气', 'LNG', 'CNG', '天然气', '牵引车', '牵引', '半挂', '挂车', '不锈钢罐', '316L', '不锈钢', '铝罐', '危化品', '危险品运输', '普货'];
+
+        function getRecommendedKeywords() {
+            try {
+                const saved = localStorage.getItem(RECOMMENDED_KEYWORDS_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                console.warn('读取建议采购关键词失败，使用默认值:', e);
+            }
+            return [...DEFAULT_RECOMMENDED_KEYWORDS];
+        }
+
+        function saveRecommendedKeywords(keywords) {
+            if (!Array.isArray(keywords)) return false;
+            localStorage.setItem(RECOMMENDED_KEYWORDS_STORAGE_KEY, JSON.stringify(keywords));
+            return true;
+        }
+
+        function resetRecommendedKeywords() {
+            localStorage.removeItem(RECOMMENDED_KEYWORDS_STORAGE_KEY);
+            return [...DEFAULT_RECOMMENDED_KEYWORDS];
+        }
 
         // CloudBase 云开发初始化
         let cloudbaseApp = null;
@@ -3655,9 +3783,9 @@
                     const pushResult = await syncDataToCloud();
                     console.log('  推送结果:', pushResult ? '成功' : '失败');
                     
-                    // 2. 再从云端 pull 其他设备的数据
-                    console.log('2. 从云端拉取最新数据...');
-                    const pullResult = await loadDataFromCloud();
+                    // 2. 再从云端 pull 其他设备的数据（合并不覆盖）
+                    console.log('2. 从云端拉取最新数据（合并模式）...');
+                    const pullResult = await mergeDataFromCloud();
                     console.log('  拉取结果:', pullResult ? '成功' : '失败');
                     
                     // 3. 刷新界面
@@ -4225,8 +4353,7 @@
                 try {
                     const beforeVehicleCount = mockData.vehicles.length;
                     const beforePendingCount = mockData.pendingVehicles.length;
-                    await loadDataFromCloud();
-                    const afterVehicleCount = mockData.vehicles.length;
+                    await mergeDataFromCloud(); // 合并不覆盖
                     const afterPendingCount = mockData.pendingVehicles.length;
                     if (beforeVehicleCount !== afterVehicleCount || beforePendingCount !== afterPendingCount) {
                         console.log('🔄 检测到云端数据更新，刷新界面');
@@ -4788,6 +4915,61 @@
             }
         }
 
+        // 合并云端数据到本地（只追加不删除，保护本地数据不丢失）
+        async function mergeDataFromCloud() {
+            if (!cloudbaseInitialized) {
+                console.log('CloudBase 未初始化，跳过云端合并');
+                return false;
+            }
+            
+            try {
+                console.log('=== 开始合并云端数据（安全模式：只增不减）===');
+                
+                const localBuyerIds = new Set(mockData.buyerRobot.vehicleList.map(v => v.id));
+                let addedCount = 0;
+                
+                // 从云端加载待处理车辆（buyerRobot数据）
+                const pendingCollection = cloudbaseDb.collection('pending_vehicles');
+                const pendingResult = await pendingCollection
+                    .where({ _source: 'truck_used_car_system' })
+                    .get();
+                
+                if (pendingResult && pendingResult.data && pendingResult.data.length > 0) {
+                    const cloudPending = pendingResult.data.map(doc => {
+                        const { _id, _syncTime, _source, ...pData } = doc;
+                        pData._cloudId = _id;
+                        pData._synced = true;
+                        return pData;
+                    });
+                    
+                    // 只添加本地不存在的新数据
+                    const newVehicles = cloudPending.filter(cv => !localBuyerIds.has(cv.id));
+                    
+                    if (newVehicles.length > 0) {
+                        mockData.buyerRobot.vehicleList.push(...newVehicles);
+                        mockData.pendingVehicles.push(...newVehicles);
+                        addedCount += newVehicles.length;
+                        console.log(`📥 从云端合并 ${newVehicles.length} 条新车辆到本地（本地原有 ${localBuyerIds.size} 条）`);
+                    } else {
+                        console.log(`☑️ 云端无新增数据，本地 ${localBuyerIds.size} 条全部保留`);
+                    }
+                } else {
+                    console.log('☑️ 云端待处理车辆为空或查询失败，本地数据不受影响');
+                }
+                
+                console.log(`=== 云端合并完成: 本地共 ${mockData.buyerRobot.vehicleList.length} 条 (新增${addedCount}) ===`);
+                
+                if (addedCount > 0) {
+                    saveDataToStorage();
+                }
+                
+                return true;
+            } catch (error) {
+                console.warn('合并云端数据失败（不影响本地数据）:', error.message);
+                return false;
+            }
+        }
+
         // 修改保存数据函数，当用户操作导致数据变更时自动同步到云端
         const originalSaveDataToStorage = saveDataToStorage;
         saveDataToStorage = function() {
@@ -4817,7 +4999,7 @@
             if (cloudbaseInitialized && !cloudLoadInProgress) {
                 cloudLoadInProgress = true;
                 setTimeout(() => {
-                    loadDataFromCloud().then(success => {
+                    mergeDataFromCloud().then(success => {
                         if (success) {
                             console.log('✅ 已从云端同步最新数据，更新界面');
                             // 同步完成后保存合并结果到本地
@@ -4884,9 +5066,9 @@
                                     const dbInitSuccess = await initCloudbaseDatabase();
                                     console.log('数据库结构初始化:', dbInitSuccess ? '成功' : '失败');
                                     
-                                    // 然后自动从云端加载数据
-                                    console.log('开始从云端加载数据...');
-                                    const success = await loadDataFromCloud();
+                                    // 然后自动从云端加载数据（合并不覆盖）
+                                    console.log('开始从云端加载数据（合并模式）...');
+                                    const success = await mergeDataFromCloud();
                                     if (success) {
                                         console.log('云端数据加载成功，更新界面...');
                                         // 更新所有相关界面
@@ -4915,7 +5097,7 @@
                                     console.log('CloudBase初始化成功，开始从云端加载数据...');
                                     setTimeout(async () => {
                                         try {
-                                            const success = await loadDataFromCloud();
+                                            const success = await mergeDataFromCloud();
                                             if (success) {
                                                 console.log('云端数据加载成功，更新界面...');
                                                 // 更新所有相关界面
@@ -4976,8 +5158,8 @@
                                 return;
                             }
                             
-                            // 从云端拉取（获取其他设备的更新）
-                            const pullResult = await loadDataFromCloud();
+                            // 从云端拉取（获取其他设备的更新，合并不覆盖）
+                            const pullResult = await mergeDataFromCloud();
                             if (pullResult) {
                                 if (typeof updateDashboard === 'function') updateDashboard();
                                 if (typeof renderInventoryTable === 'function') renderInventoryTable();
@@ -6357,6 +6539,163 @@
                     await clearTestData();
                 });
             }
+            
+            // === 低符合率关键词管理 ===
+            let currentLowMatchKeywords = getLowMatchKeywords();
+            
+            function renderLowMatchKeywordTags() {
+                const container = document.getElementById('lowmatch-keywords-tags');
+                if (!container) return;
+                if (currentLowMatchKeywords.length === 0) {
+                    container.innerHTML = '<span class="text-xs text-gray-400">暂无关键词</span>';
+                    return;
+                }
+                container.innerHTML = currentLowMatchKeywords.map((kw, i) => 
+                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium border border-yellow-200">
+                        ${kw}
+                        <button type="button" data-index="${i}" class="remove-kw-btn text-yellow-500 hover:text-red-500 hover:bg-yellow-200 rounded-full w-4 h-4 inline-flex items-center justify-center transition-colors" title="删除">×</button>
+                    </span>`
+                ).join('');
+                
+                // 绑定删除事件
+                container.querySelectorAll('.remove-kw-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index);
+                        currentLowMatchKeywords.splice(idx, 1);
+                        renderLowMatchKeywordTags();
+                    });
+                });
+            }
+            
+            function addLowMatchKeyword() {
+                const input = document.getElementById('lowmatch-keyword-input');
+                if (!input) return;
+                const kw = input.value.trim();
+                if (!kw) return;
+                if (currentLowMatchKeywords.includes(kw)) {
+                    showNotification('关键词已存在', 'warning');
+                    return;
+                }
+                currentLowMatchKeywords.push(kw);
+                input.value = '';
+                renderLowMatchKeywordTags();
+                input.focus();
+            }
+            
+            const addLowMatchBtn = document.getElementById('add-lowmatch-keyword-btn');
+            if (addLowMatchBtn) {
+                addLowMatchBtn.addEventListener('click', addLowMatchKeyword);
+            }
+            
+            const kwInput = document.getElementById('lowmatch-keyword-input');
+            if (kwInput) {
+                kwInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLowMatchKeyword();
+                    }
+                });
+            }
+            
+            const saveKwBtn = document.getElementById('save-lowmatch-keywords-btn');
+            if (saveKwBtn) {
+                saveKwBtn.addEventListener('click', function() {
+                    if (saveLowMatchKeywords(currentLowMatchKeywords)) {
+                        showNotification(`已保存 ${currentLowMatchKeywords.length} 个关键词`, 'success');
+                    } else {
+                        showNotification('保存失败', 'error');
+                    }
+                });
+            }
+            
+            const resetKwBtn = document.getElementById('reset-lowmatch-keywords-btn');
+            if (resetKwBtn) {
+                resetKwBtn.addEventListener('click', function() {
+                    if (confirm('确定要恢复默认关键词吗？\n\n当前自定义的关键词将被替换为系统默认列表。')) {
+                        currentLowMatchKeywords = resetLowMatchKeywords();
+                        renderLowMatchKeywordTags();
+                        showNotification('已恢复默认关键词', 'success');
+                    }
+                });
+            }
+            
+            // 初始渲染关键词标签
+            renderLowMatchKeywordTags();
+            
+            // === 建议采购关键词管理 ===
+            let currentRecommendKeywords = getRecommendedKeywords();
+            
+            function renderRecommendKeywordTags() {
+                const container = document.getElementById('recommend-keywords-tags');
+                if (!container) return;
+                if (currentRecommendKeywords.length === 0) {
+                    container.innerHTML = '<span class="text-xs text-gray-400">暂无关键词</span>';
+                    return;
+                }
+                container.innerHTML = currentRecommendKeywords.map((kw, i) => 
+                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium border border-green-200">
+                        ${kw}
+                        <button type="button" data-index="${i}" class="remove-rkw-btn text-green-500 hover:text-red-500 hover:bg-green-200 rounded-full w-4 h-4 inline-flex items-center justify-center transition-colors" title="删除">×</button>
+                    </span>`
+                ).join('');
+                
+                container.querySelectorAll('.remove-rkw-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index);
+                        currentRecommendKeywords.splice(idx, 1);
+                        renderRecommendKeywordTags();
+                    });
+                });
+            }
+            
+            function addRecommendKeyword() {
+                const input = document.getElementById('recommend-keyword-input');
+                if (!input) return;
+                const kw = input.value.trim();
+                if (!kw) return;
+                if (currentRecommendKeywords.includes(kw)) {
+                    showNotification('关键词已存在', 'warning');
+                    return;
+                }
+                currentRecommendKeywords.push(kw);
+                input.value = '';
+                renderRecommendKeywordTags();
+                input.focus();
+            }
+            
+            const addRkwBtn = document.getElementById('add-recommend-keyword-btn');
+            if (addRkwBtn) addRkwBtn.addEventListener('click', addRecommendKeyword);
+            
+            const rkwInput = document.getElementById('recommend-keyword-input');
+            if (rkwInput) {
+                rkwInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); addRecommendKeyword(); }
+                });
+            }
+            
+            const saveRkwBtn = document.getElementById('save-recommend-keywords-btn');
+            if (saveRkwBtn) {
+                saveRkwBtn.addEventListener('click', function() {
+                    if (saveRecommendedKeywords(currentRecommendKeywords)) {
+                        showNotification(`已保存 ${currentRecommendKeywords.length} 个建议采购关键词`, 'success');
+                    } else {
+                        showNotification('保存失败', 'error');
+                    }
+                });
+            }
+            
+            const resetRkwBtn = document.getElementById('reset-recommend-keywords-btn');
+            if (resetRkwBtn) {
+                resetRkwBtn.addEventListener('click', function() {
+                    if (confirm('确定要恢复默认建议采购关键词吗？')) {
+                        currentRecommendKeywords = resetRecommendedKeywords();
+                        renderRecommendKeywordTags();
+                        showNotification('已恢复默认建议采购关键词', 'success');
+                    }
+                });
+            }
+            
+            renderRecommendKeywordTags();
             
             // 为模态框添加点击            }
             
@@ -9984,7 +10323,7 @@
             const existingVehicles = mockData.buyerRobot.vehicleList;
             let duplicateCount = 0;
             const duplicateVehicles = [];
-            const uniqueNewVehicles = [];
+            let uniqueNewVehicles = [];
             
             // 辅助函数：检查两个车辆是否重复
             function isDuplicateVehicle(v1, v2) {
@@ -10093,6 +10432,102 @@
                 }
                 
                 console.log(`用户确认导入，跳过 ${duplicateCount} 条重复数据，导入 ${uniqueNewVehicles.length} 条新数据`);
+            }
+            
+            // === 检测低符合率车型（非重卡二手车业务范围）===
+            const LOW_MATCH_KEYWORDS = getLowMatchKeywords();
+            
+            let lowMatchCount = 0;
+            const lowMatchVehicles = [];
+            const highQualityVehicles = [];
+            
+            uniqueNewVehicles.forEach(v => {
+                const row = v.originalData?.originalRow || v.originalData || {};
+                const title = row['车辆标题'] || v.brand || v.model || '';
+                const type = row['车辆类型'] || row['品类'] || '';
+                const allText = (title + ' ' + type + ' ' + Object.values(row).join(' ')).toLowerCase();
+                
+                let isLowMatch = false;
+                let matchedKeyword = '';
+                for (const kw of LOW_MATCH_KEYWORDS) {
+                    if (allText.includes(kw.toLowerCase())) {
+                        isLowMatch = true;
+                        matchedKeyword = kw; break;
+                    }
+                }
+                
+                if (isLowMatch) {
+                    lowMatchCount++;
+                    lowMatchVehicles.push({ ...v, _lowMatchReason: matchedKeyword });
+                } else {
+                    highQualityVehicles.push(v);
+                }
+            });
+            
+            if (lowMatchCount > 0) {
+                // 构建低符合率数据列表
+                let lowMatchListHtml = '';
+                lowMatchVehicles.slice(0, 8).forEach(v => {
+                    const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名';
+                    const reason = v._lowMatchReason || '未知类型';
+                    const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                    lowMatchListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-yellow-50 rounded mb-2 border border-yellow-200">
+                        <div class="flex-1 mr-3 min-w-0">
+                            <span class="text-sm text-gray-800 truncate block" title="${title}">${title}</span>
+                            <span class="text-xs text-yellow-600">含「${reason}」</span>
+                        </div>
+                        <span class="text-sm font-medium text-yellow-700 whitespace-nowrap ml-2">${price}</span>
+                    </div>`;
+                });
+                if (lowMatchVehicles.length > 8) {
+                    lowMatchListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${lowMatchVehicles.length - 8} 条</div>`;
+                }
+                
+                const lowConfirmed = await new Promise(resolve => {
+                    const modalOverlay = document.createElement('div');
+                    modalOverlay.id = 'lowmatch-confirm-modal-import';
+                    modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]';
+                    modalOverlay.innerHTML = `
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div class="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4">
+                                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i class="fas fa-filter"></i>
+                                    检测到低符合率车型
+                                </h3>
+                            </div>
+                            <div class="p-6">
+                                <p class="text-gray-700 mb-3">
+                                    检测到 <span class="font-bold text-yellow-600 text-lg">${lowMatchCount}</span> 条数据的车辆类型
+                                    <span class="text-red-500 font-medium">符合率极低</span>，不属于重卡危货/牵引车业务范围。
+                                </p>
+                                <p class="text-sm text-gray-500 mb-4">将跳过这些数据，只导入 <span class="font-medium text-green-600">${highQualityVehicles.length}</span> 条有效数据。</p>
+                                <div class="mb-4">
+                                    <p class="text-xs text-gray-400 mb-2">低符合率数据：</p>
+                                    <div class="max-h-44 overflow-y-auto border border-yellow-200 rounded-lg p-2 bg-yellow-50/30">
+                                        ${lowMatchListHtml}
+                                    </div>
+                                </div>
+                                <div class="flex gap-3 justify-end">
+                                    <button id="lm-cancel-btn-import" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">取消全部导入</button>
+                                    <button id="lm-confirm-btn-import" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md">确认导入（仅有效数据）</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(modalOverlay);
+                    
+                    document.getElementById('lm-cancel-btn-import').onclick = () => { modalOverlay.remove(); resolve(false); };
+                    document.getElementById('lm-confirm-btn-import').onclick = () => { modalOverlay.remove(); resolve(true); };
+                    modalOverlay.onclick = (e) => { if (e.target === modalOverlay) { modalOverlay.remove(); resolve(false); } };
+                });
+                
+                if (!lowConfirmed) {
+                    console.log(`用户取消导入：检测到${lowMatchCount}条低符合率车型`);
+                    showNotification('导入已取消', 'warning');
+                    return;
+                }
+                
+                console.log(`用户确认导入，跳过${lowMatchCount}条低符合率，导入${highQualityVehicles.length}条有效数据`);
+                uniqueNewVehicles = highQualityVehicles;
             }
             
             // 只导入非重复数据
@@ -10635,7 +11070,103 @@
                         continueBuyerImport();
                     }
                     
-                    // 继续导入的内部函数（去重后的实际执行逻辑）
+                    // === 检测低符合率车型（非重卡二手车业务范围）===
+                    const LOW_MATCH_KEYWORDS = getLowMatchKeywords();
+                    
+                    let lowMatchCount = 0;
+                    const lowMatchVehicles = [];
+                    const highQualityVehicles = [];
+                    
+                    buyerUniqueVehicles.forEach(v => {
+                        const row = v.originalData?.originalRow || v.originalData || {};
+                        const title = row['车辆标题'] || v.brand || v.model || '';
+                        const type = row['车辆类型'] || row['品类'] || '';
+                        const allText = (title + ' ' + type + ' ' + Object.values(row).join(' ')).toLowerCase();
+                        
+                        let isLowMatch = false;
+                        let matchedKeyword = '';
+                        for (const kw of LOW_MATCH_KEYWORDS) {
+                            if (allText.includes(kw.toLowerCase())) {
+                                isLowMatch = true;
+                                matchedKeyword = kw; break;
+                            }
+                        }
+                        
+                        if (isLowMatch) {
+                            lowMatchCount++;
+                            lowMatchVehicles.push({ ...v, _lowMatchReason: matchedKeyword });
+                        } else {
+                            highQualityVehicles.push(v);
+                        }
+                    });
+                    
+                    if (lowMatchCount > 0) {
+                        // 构建低符合率数据列表
+                        let lowMatchListHtml = '';
+                        lowMatchVehicles.slice(0, 8).forEach(v => {
+                            const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名';
+                            const reason = v._lowMatchReason || '未知类型';
+                            const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                            lowMatchListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-yellow-50 rounded mb-2 border border-yellow-200">
+                                <div class="flex-1 mr-3 min-w-0">
+                                    <span class="text-sm text-gray-800 truncate block" title="${title}">${title}</span>
+                                    <span class="text-xs text-yellow-600">含「${reason}」</span>
+                                </div>
+                                <span class="text-sm font-medium text-yellow-700 whitespace-nowrap ml-2">${price}</span>
+                            </div>`;
+                        });
+                        if (lowMatchVehicles.length > 8) {
+                            lowMatchListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${lowMatchVehicles.length - 8} 条</div>`;
+                        }
+                        
+                        const confirmed = await new Promise(resolve => {
+                            const modalOverlay = document.createElement('div');
+                            modalOverlay.id = 'lowmatch-confirm-modal';
+                            modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]';
+                            modalOverlay.innerHTML = `
+                                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                    <div class="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4">
+                                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                            <i class="fas fa-filter"></i>
+                                            检测到低符合率车型
+                                        </h3>
+                                    </div>
+                                    <div class="p-6">
+                                        <p class="text-gray-700 mb-3">
+                                            检测到 <span class="font-bold text-yellow-600 text-lg">${lowMatchCount}</span> 条数据的车辆类型
+                                            <span class="text-red-500 font-medium">符合率极低</span>，不属于重卡危货/牵引车业务范围。
+                                        </p>
+                                        <p class="text-sm text-gray-500 mb-4">将跳过这些数据，只导入 <span class="font-medium text-green-600">${highQualityVehicles.length}</span> 条有效数据。</p>
+                                        <div class="mb-4">
+                                            <p class="text-xs text-gray-400 mb-2">低符合率数据：</p>
+                                            <div class="max-h-44 overflow-y-auto border border-yellow-200 rounded-lg p-2 bg-yellow-50/30">
+                                                ${lowMatchListHtml}
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-3 justify-end">
+                                            <button id="lm-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">取消全部导入</button>
+                                            <button id="lm-confirm-btn" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md">确认导入（仅有效数据）</button>
+                                        </div>
+                                    </div>
+                                </div>`;
+                            document.body.appendChild(modalOverlay);
+                            
+                            document.getElementById('lm-cancel-btn').onclick = () => { modalOverlay.remove(); resolve(false); };
+                            document.getElementById('lm-confirm-btn').onclick = () => { modalOverlay.remove(); resolve(true); };
+                            modalOverlay.onclick = (e) => { if (e.target === modalOverlay) { modalOverlay.remove(); resolve(false); } };
+                        });
+                        
+                        if (!confirmed) {
+                            console.log(`用户取消导入：检测到${lowMatchCount}条低符合率车型`);
+                            showNotification('导入已取消', 'warning');
+                            return;
+                        }
+                        
+                        console.log(`用户确认导入，跳过${lowMatchCount}条低符合率，导入${highQualityVehicles.length}条有效数据`);
+                        buyerUniqueVehicles = highQualityVehicles;
+                    }
+                    
+                    // 继续导入的内部函数
                     function continueBuyerImport() {
                         // 追加去重后的数据到现有车辆列表
                         if (buyerUniqueVehicles.length > 0) {
@@ -13298,65 +13829,22 @@ function isVehicleRecommended(vehicle) {
     
     allText = allText.toLowerCase();
     
+    // 获取用户自定义建议采购关键词
+    const KEYWORDS = getRecommendedKeywords();
+    if (KEYWORDS.length === 0) return false;
+    
     let matchCount = 0;
     let details = [];
     
-    // 1. 危货车 / 危险品车辆（放宽匹配）
-    if (/危货|危险品.*车|危险品运输|危险品.*牵引/.test(allText)) { matchCount++; details.push('危货/危险品车'); }
-    
-    // 2. 国六排放标准
-    if (/国六|国6|国ⅵ|欧六|euro\s*6/.test(allText)) { matchCount++; details.push('国六'); }
-    
-    // 3. 燃气车 / LNG / CNG
-    if (/燃气|lng|l\.n\.g|cng|天然气|气体|气牵|气.*牵引/.test(allText)) { matchCount++; details.push('燃气车'); }
-    
-    // 4. 牵引车类型
-    if (/牵引车|牵引|半挂|挂车|头.*半/.test(allText)) { matchCount++; details.push('牵引车'); }
-    
-    // 5. 较新车龄（21年及以后，大幅放宽）
-    let yearMatched = false;
-    const yearFields = [dataToShow['上牌时间'], dataToShow['年限'], dataToShow['上牌时间/年限'], vehicle.year];
-    for (const yr of yearFields) {
-        if (yr !== undefined && yr !== null && String(yr).trim()) {
-            const yearNumMatch = String(yr).match(/(20\d{2})/);
-            if (yearNumMatch && parseInt(yearNumMatch[1]) >= 2021) {
-                yearMatched = true; break;
-            }
+    // 逐关键词检查是否出现在车辆文本中（不区分大小写）
+    for (const kw of KEYWORDS) {
+        if (kw && allText.includes(kw.toLowerCase())) {
+            matchCount++;
+            details.push(kw);
         }
     }
-    if (yearMatched) { matchCount++; details.push('较新车龄'); }
     
-    // 6. 不锈钢罐体材质
-    if (/316l?|不锈钢罐|不锈钢|铝罐/.test(allText)) { matchCount++; details.push('不锈钢罐'); }
-    
-    // 7. 危险品类别资质（任意类别都算）
-    if (/[一二三四五六七八九]类.*[危险化]|[危险化].*[一二三四五六七八九]类|危险品|危化品|普货.*危|危.*运/.test(allText)) { matchCount++; details.push('危化品资质'); }
-    
-    // 8. 高马力（350马力以上，继续放宽）
-    let hpMatched = false;
-    const hpFields = [dataToShow['马力'], dataToShow['马力/车型'], dataToShow['车型'], vehicle.horsepower];
-    for (const hp of hpFields) {
-        if (hp !== undefined && hp !== null && String(hp).trim()) {
-            const hpMatch = String(hp).match(/(\d+)\s*马力?/);
-            if (hpMatch && parseInt(hpMatch[1]) >= 350) {
-                hpMatched = true; break;
-            }
-        }
-    }
-    if (hpMatched) { matchCount++; details.push(`${hpMatched?'高马力':'低马力'}`); }
-    
-    // 9. 低里程（20万公里以内，无信息也算通过）
-    let mileageOk = true;
-    const mileFields = [dataToShow['里程'], dataToShow['行驶里程'], vehicle.mileage];
-    for (const m of mileFields) {
-        if (m !== undefined && m !== null && String(m).trim()) {
-            const mNum = parseFloat(String(m).replace(/[^\d.]/g, ''));
-            if (!isNaN(mNum) && mNum > 20) { mileageOk = false; }
-        }
-    }
-    if (mileageOk) { matchCount++; details.push('低里程'); }
-    
-    const pass = matchCount >= Math.ceil(9 * 0.45); // 45% → ≥4项
+    const pass = KEYWORDS.length > 0 && (matchCount / KEYWORDS.length) >= 0.8; // ≥80%匹配
     return pass;
 }
 
@@ -13545,7 +14033,7 @@ function addNewVehicle() {
 
                 
                 // 使用事件委托处理按钮点击事件
-                document.addEventListener('click', function(e) {
+                document.addEventListener('click', async function(e) {
                     console.log('点击事件触发，目标:', e.target);
                     // 调试日志，不弹窗以免被浏览器阻止
                     console.log('点击事件被捕获，目标:', e.target.id || e.target.className || e.target.tagName);
@@ -15100,10 +15588,14 @@ function addNewVehicle() {
                             
                             // 直接导入数据（跳过预览）
                             try {
-                                importData('buyer', dataArray);
+                                await importData('buyer', dataArray);
                                 addYingdaoLog('文本数据导入成功，共 1 条记录', 'success');
                                 showNotification('文本数据导入成功，共 1 条记录', 'success');
                             } catch (error) {
+                                if (error.message && error.message.includes('取消')) {
+                                    addYingdaoLog('用户取消了文本数据导入', 'warning');
+                                    return;
+                                }
                                 showNotification('导入文本数据时发生错误：' + error.message, 'error');
                                 addYingdaoLog('文本数据导入失败：' + error.message, 'error');
                             }
@@ -15169,7 +15661,7 @@ function addNewVehicle() {
                         }
                         
                         try {
-                            importToBuyerRobot(parsedExcelData);
+                            await importToBuyerRobot(parsedExcelData);
                             setTimeout(renderBuyerRobotTable, 100);
                             addYingdaoLog(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
                             showNotification(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
@@ -15197,7 +15689,7 @@ function addNewVehicle() {
                         }
                         
                         try {
-                            importToBuyerRobot(parsedExcelData);
+                            await importToBuyerRobot(parsedExcelData);
                             // 隐藏模态框
                             const modal = document.getElementById('data-preview-modal');
                             if (modal) {
@@ -15505,10 +15997,11 @@ function addNewVehicle() {
         
         // 监听所有点击事件并记录
         document.addEventListener('click', function(e) {
+            if (!e || !e.target) return;
             console.log('点击事件：', e.target.tagName, 
                 '类名:', e.target.className, 
                 'ID:', e.target.id,
-                '文本:', e.target.textContent?.substring(0, 50));
+                '文本:', (e.target.textContent || '').substring(0, 50));
             
             // 如果点击了“加入库存”按钮，显示视觉反馈
             if (e.target.closest('.add-to-inventory-btn')) {
