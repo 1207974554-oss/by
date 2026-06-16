@@ -3923,6 +3923,7 @@
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
+                                vehicle._synced = true; // 🔑 逐条标记：仅成功推送的才标记
                                 vehiclesUpdated++;
                                 console.log('✅ 车辆已更新到云端:', vehicle.id);
                             } else {
@@ -3933,6 +3934,7 @@
                                     _source: 'truck_used_car_system'
                                 });
                                 if (addResult && (addResult.id || addResult._id)) {
+                                    vehicle._synced = true; // 🔑 逐条标记：仅成功推送的才标记
                                     vehiclesCreated++;
                                     console.log('✅ 车辆已新增到云端:', vehicle.id);
                                 } else {
@@ -3986,6 +3988,7 @@
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
+                                transaction._synced = true; // 🔑 逐条标记
                                 transactionsUpdated++;
                                 console.log('✅ 交易已更新到云端:', transaction.id);
                             } else {
@@ -3995,6 +3998,7 @@
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
+                                transaction._synced = true; // 🔑 逐条标记
                                 transactionsCreated++;
                                 console.log('✅ 交易已新增到云端:', transaction.id);
                             }
@@ -4040,6 +4044,7 @@
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
+                                pending._synced = true; // 🔑 逐条标记
                                 pendingUpdated++;
                                 console.log('✅ 待处理车辆已更新到云端:', pending.id);
                             } else {
@@ -4049,6 +4054,7 @@
                                     _syncTime: new Date(),
                                     _source: 'truck_used_car_system'
                                 });
+                                pending._synced = true; // 🔑 逐条标记
                                 pendingCreated++;
                                 console.log('✅ 待处理车辆已新增到云端:', pending.id);
                             }
@@ -4123,11 +4129,7 @@
                         console.log(`✅ 数据已成功同步到 CloudBase！总计: ${totalSynced} 条记录，新增: ${totalCreated} 条，更新: ${totalUpdated} 条`);
                     }
                     
-                    // 标记所有已同步到云端的数据（用于检测其他设备的删除操作）
-                    mockData.vehicles.forEach(v => v._synced = true);
-                    mockData.transactions.forEach(t => t._synced = true);
-                    mockData.pendingVehicles.forEach(p => p._synced = true);
-                    console.log('✅ 已标记本地数据为已同步状态');
+                    // 🔑 逐条标记已在各循环中完成（仅标记成功推送的数据），不再全量标记
                     
                     return true;
                 } else {
@@ -4944,6 +4946,46 @@
                     });
                     mockData.pendingVehicles = [...freshCloudPending, ...survivingLocalPending];
                     console.log(`🔄 待处理合并：云端 ${freshCloudPending.length} + 本地新 ${survivingLocalPending.length} = ${mockData.pendingVehicles.length} 条`);
+                    
+                    // 🔑 内容相似度去重（Jaccard ≥70%），防止不同ID但内容重复的数据
+                    if (mockData.pendingVehicles.length > 1) {
+                        const beforeDedup = mockData.pendingVehicles.length;
+                        const dedupedPending = [];
+                        const dedupedTexts = [];
+                        let dedupSkipped = 0;
+                        
+                        function getPVehicleText(v) {
+                            let t = '';
+                            for (const k in v) { if (typeof v[k] === 'string') t += v[k] + ' '; }
+                            return t.trim().toLowerCase();
+                        }
+                        function jSim(a, b) {
+                            if (!a || !b) return 0;
+                            if (a === b || a.includes(b) || b.includes(a)) return 1;
+                            const ws = (s) => new Set(s.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2));
+                            const w1 = ws(a), w2 = ws(b);
+                            if (w1.size === 0 || w2.size === 0) return 0;
+                            let inter = 0; w1.forEach(w => { if (w2.has(w)) inter++; });
+                            return inter / (w1.size + w2.size - inter);
+                        }
+                        
+                        for (const v of mockData.pendingVehicles) {
+                            const vt = getPVehicleText(v);
+                            let dup = false;
+                            for (const dt of dedupedTexts) {
+                                if (jSim(vt, dt) >= 0.7) { dup = true; dedupSkipped++; break; }
+                            }
+                            if (!dup) {
+                                dedupedPending.push(v);
+                                dedupedTexts.push(vt);
+                            }
+                        }
+                        
+                        if (dedupedPending.length < beforeDedup) {
+                            mockData.pendingVehicles = dedupedPending;
+                            console.log(`🧹 loadDataFromCloud 去重：${beforeDedup} → ${dedupedPending.length} 条（移除 ${dedupSkipped} 条相似重复）`);
+                        }
+                    }
                 } else if (pendingResult && pendingResult.data) {
                     const beforeCount = mockData.pendingVehicles.length;
                     mockData.pendingVehicles = mockData.pendingVehicles.filter(p => p._synced !== true);
