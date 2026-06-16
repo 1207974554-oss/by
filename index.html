@@ -1272,7 +1272,7 @@
                                                             <i class="fas fa-check mr-1"></i>保存关键词
                                                         </button>
                                                     </div>
-                                                    <p class="text-xs text-gray-400 mt-1">提示：点击标签上的 × 可删除，关键词修改后需点击「保存关键词」生效。</p>
+                                                    <p class="text-xs text-gray-400 mt-1">提示：点击标签上的 × 可删除，添加或删除后自动保存，无需手动操作。</p>
                                                 </div>
                                                 
                                                 <!-- 建议采购关键词管理 -->
@@ -6562,6 +6562,7 @@
                     btn.addEventListener('click', function() {
                         const idx = parseInt(this.dataset.index);
                         currentLowMatchKeywords.splice(idx, 1);
+                        saveLowMatchKeywords(currentLowMatchKeywords);
                         renderLowMatchKeywordTags();
                     });
                 });
@@ -6577,6 +6578,7 @@
                     return;
                 }
                 currentLowMatchKeywords.push(kw);
+                saveLowMatchKeywords(currentLowMatchKeywords);
                 input.value = '';
                 renderLowMatchKeywordTags();
                 input.focus();
@@ -6600,11 +6602,7 @@
             const saveKwBtn = document.getElementById('save-lowmatch-keywords-btn');
             if (saveKwBtn) {
                 saveKwBtn.addEventListener('click', function() {
-                    if (saveLowMatchKeywords(currentLowMatchKeywords)) {
-                        showNotification(`已保存 ${currentLowMatchKeywords.length} 个关键词`, 'success');
-                    } else {
-                        showNotification('保存失败', 'error');
-                    }
+                    showNotification(`当前共 ${currentLowMatchKeywords.length} 个关键词（已自动保存）`, 'success');
                 });
             }
             
@@ -6643,6 +6641,7 @@
                     btn.addEventListener('click', function() {
                         const idx = parseInt(this.dataset.index);
                         currentRecommendKeywords.splice(idx, 1);
+                        saveRecommendedKeywords(currentRecommendKeywords);
                         renderRecommendKeywordTags();
                     });
                 });
@@ -6658,6 +6657,7 @@
                     return;
                 }
                 currentRecommendKeywords.push(kw);
+                saveRecommendedKeywords(currentRecommendKeywords);
                 input.value = '';
                 renderRecommendKeywordTags();
                 input.focus();
@@ -6676,11 +6676,7 @@
             const saveRkwBtn = document.getElementById('save-recommend-keywords-btn');
             if (saveRkwBtn) {
                 saveRkwBtn.addEventListener('click', function() {
-                    if (saveRecommendedKeywords(currentRecommendKeywords)) {
-                        showNotification(`已保存 ${currentRecommendKeywords.length} 个建议采购关键词`, 'success');
-                    } else {
-                        showNotification('保存失败', 'error');
-                    }
+                    showNotification(`当前共 ${currentRecommendKeywords.length} 个建议采购关键词（已自动保存）`, 'success');
                 });
             }
             
@@ -10319,73 +10315,124 @@
                 return vehicle;
             });
             
-            // 检测重复车辆（基于品牌、型号、年份、里程的相似性）
+            // 检测重复车辆（精确匹配 + 70%相似度模糊匹配）
             const existingVehicles = mockData.buyerRobot.vehicleList;
-            let duplicateCount = 0;
-            const duplicateVehicles = [];
+            let exactDupCount = 0;
+            const exactDuplicateVehicles = [];
+            let similarCount = 0;
+            const similarVehicles = [];
             let uniqueNewVehicles = [];
             
-            // 辅助函数：检查两个车辆是否重复
+            // 辅助函数：提取车辆全部文本用于相似度比较
+            function getVehicleFullText(v) {
+                const row = v.originalData?.originalRow || v.originalData || {};
+                let text = '';
+                for (const key in row) { text += String(row[key] || '') + ' '; }
+                text += (v.brand || '') + ' ' + (v.model || '') + ' ' + (v.condition || '') + ' ';
+                return text.trim().toLowerCase();
+            }
+            
+            // 中文友好的词组级 Jaccard 相似度
+            function textSimilarity(s1, s2) {
+                if (!s1 || !s2) return 0;
+                if (s1 === s2) return 1;
+                if (s1.includes(s2) || s2.includes(s1)) return 1;
+                const split = (t) => t.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+                const words1 = new Set(split(s1));
+                const words2 = new Set(split(s2));
+                if (words1.size === 0 && words2.size === 0) return 0;
+                if (words1.size === 0 || words2.size === 0) return 0;
+                
+                let intersection = 0;
+                words1.forEach(w => { if (words2.has(w)) intersection++; });
+                return intersection / (words1.size + words2.size - intersection);
+            }
+            
+            // 辅助函数：检查两个车辆是否精确重复
             function isDuplicateVehicle(v1, v2) {
-                // 如果品牌和型号都为空，则比较原始数据
                 if (!v1.brand && !v1.model && !v2.brand && !v2.model) {
-                    // 比较原始数据字符串
                     return JSON.stringify(v1.originalData?.originalRow) === JSON.stringify(v2.originalData?.originalRow);
                 }
-                
-                // 比较品牌、型号、年份、里程
                 const brandMatch = (!v1.brand && !v2.brand) || (v1.brand && v2.brand && v1.brand.trim() === v2.brand.trim());
                 const modelMatch = (!v1.model && !v2.model) || (v1.model && v2.model && v1.model.trim() === v2.model.trim());
                 const yearMatch = (!v1.year && !v2.year) || (v1.year && v2.year && String(v1.year).trim() === String(v2.year).trim());
                 const mileageMatch = (!v1.mileage && !v2.mileage) || (v1.mileage && v2.mileage && String(v1.mileage).trim() === String(v2.mileage).trim());
-                
-                // 如果品牌和型号都匹配，则认为是重复
                 if (brandMatch && modelMatch) {
-                    // 进一步检查年份和里程，如果都有值且不匹配，可能不是同一辆车
-                    if (v1.year && v2.year && String(v1.year).trim() !== String(v2.year).trim()) {
-                        return false;
-                    }
-                    if (v1.mileage && v2.mileage && String(v1.mileage).trim() !== String(v2.mileage).trim()) {
-                        return false;
-                    }
+                    if (v1.year && v2.year && String(v1.year).trim() !== String(v2.year).trim()) return false;
+                    if (v1.mileage && v2.mileage && String(v1.mileage).trim() !== String(v2.mileage).trim()) return false;
                     return true;
                 }
                 return false;
             }
             
-            // 检查每个新车辆是否已存在
+            // 检查每个新车辆
             newVehicles.forEach(newVehicle => {
-                let isDuplicate = false;
+                let isExactDup = false;
+                let highestSimilarity = 0;
+                let bestMatch = null;
+                const newText = getVehicleFullText(newVehicle);
+                
                 for (const existingVehicle of existingVehicles) {
                     if (isDuplicateVehicle(newVehicle, existingVehicle)) {
-                        isDuplicate = true;
+                        isExactDup = true;
+                        newVehicle._dupWith = existingVehicle;
                         break;
+                    }
+                    // 如果不精确重复，计算文本相似度
+                    if (!isExactDup) {
+                        const existingText = getVehicleFullText(existingVehicle);
+                        const sim = textSimilarity(newText, existingText);
+                        if (sim > highestSimilarity) {
+                            highestSimilarity = sim;
+                            bestMatch = existingVehicle;
+                        }
                     }
                 }
                 
-                if (isDuplicate) {
-                    duplicateCount++;
-                    duplicateVehicles.push(newVehicle);
+                if (isExactDup) {
+                    exactDupCount++;
+                    exactDuplicateVehicles.push(newVehicle);
+                } else if (highestSimilarity >= 0.7) {
+                    similarCount++;
+                    newVehicle._similarity = Math.round(highestSimilarity * 100);
+                    newVehicle._similarTo = bestMatch;
+                    similarVehicles.push(newVehicle);
                 } else {
                     uniqueNewVehicles.push(newVehicle);
                 }
             });
             
-            // 如果有重复项，使用自定义模态框提示用户确认
-            if (duplicateCount > 0) {
-                // 构建重复数据详情列表
-                let duplicateListHtml = '';
-                duplicateVehicles.slice(0, 10).forEach(v => {
+            // 如果有精确重复或高度相似项，弹窗提示
+            const totalWarning = exactDupCount + similarCount;
+            if (totalWarning > 0) {
+                // 构建精确重复列表
+                let exactListHtml = '';
+                exactDuplicateVehicles.slice(0, 5).forEach(v => {
                     const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
                     const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
-                    duplicateListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-red-50 rounded mb-2">
-                        <span class="text-sm text-gray-800 truncate flex-1 mr-3" title="${title}">${title}</span>
-                        <span class="text-sm font-medium text-red-600 whitespace-nowrap">${price}</span>
+                    exactListHtml += `<div class="flex justify-between items-center py-1.5 px-3 bg-red-50 rounded mb-1 border border-red-200">
+                        <span class="text-xs text-gray-800 truncate flex-1 mr-2" title="${title}">${title}</span>
+                        <span class="text-xs font-medium text-red-600 whitespace-nowrap">${price}</span>
                     </div>`;
                 });
-                if (duplicateVehicles.length > 10) {
-                    duplicateListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${duplicateVehicles.length - 10} 条重复数据</div>`;
-                }
+                if (exactDuplicateVehicles.length > 5) exactListHtml += `<div class="text-xs text-gray-400 text-center py-1">...还有 ${exactDuplicateVehicles.length - 5} 条</div>`;
+                
+                // 构建高度相似列表
+                let similarListHtml = '';
+                similarVehicles.slice(0, 5).forEach(v => {
+                    const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
+                    const sim = v._similarity || 70;
+                    const similarTitle = v._similarTo ? (v._similarTo.brand || v._similarTo.model || '已有车辆') : '已有车辆';
+                    const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                    similarListHtml += `<div class="flex justify-between items-center py-1.5 px-3 bg-orange-50 rounded mb-1 border border-orange-200">
+                        <div class="flex-1 mr-2 min-w-0">
+                            <span class="text-xs text-gray-800 truncate block" title="${title}">${title}</span>
+                            <span class="text-xs text-orange-500">相似度 ${sim}% → 疑似与「${similarTitle}」重复</span>
+                        </div>
+                        <span class="text-xs font-medium text-orange-600 whitespace-nowrap">${price}</span>
+                    </div>`;
+                });
+                if (similarVehicles.length > 5) similarListHtml += `<div class="text-xs text-gray-400 text-center py-1">...还有 ${similarVehicles.length - 5} 条</div>`;
                 
                 const confirmed = await new Promise(resolve => {
                     const modalOverlay = document.createElement('div');
@@ -10396,21 +10443,18 @@
                             <div class="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
                                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                                     <i class="fas fa-exclamation-triangle"></i>
-                                    检测到重复数据
+                                    检测到重复/相似数据
                                 </h3>
                             </div>
                             <div class="p-6">
-                                <p class="text-gray-700 mb-4">
-                                    共检测到 <span class="font-bold text-red-600 text-lg">${duplicateCount}</span> 条重复数据，
+                                <p class="text-gray-700 mb-3 text-sm">
+                                    ${exactDupCount > 0 ? `共 <span class="font-bold text-red-600">${exactDupCount}</span> 条<span class="text-red-500">精确重复</span>数据，` : ''}
+                                    ${similarCount > 0 ? `<span class="font-bold text-orange-500">${similarCount}</span> 条<span class="text-orange-500">高度相似（≥70%）</span>数据，` : ''}
                                     将被跳过不导入。
-                                    <span class="font-bold text-green-600">${uniqueNewVehicles.length}</span> 条新数据将正常导入。
+                                    <br><span class="font-bold text-green-600">${uniqueNewVehicles.length}</span> 条新数据将正常导入。
                                 </p>
-                                <div class="mb-4">
-                                    <p class="text-xs text-gray-500 mb-2">重复数据列表：</p>
-                                    <div class="max-h-48 overflow-y-auto border border-red-200 rounded-lg p-2">
-                                        ${duplicateListHtml}
-                                    </div>
-                                </div>
+                                ${exactDupCount > 0 ? `<div class="mb-3"><p class="text-xs text-red-400 mb-1 font-medium">🔴 精确重复：</p><div class="max-h-28 overflow-y-auto border border-red-200 rounded-lg p-2 bg-red-50/30">${exactListHtml}</div></div>` : ''}
+                                ${similarCount > 0 ? `<div class="mb-3"><p class="text-xs text-orange-400 mb-1 font-medium">🟠 高度相似（≥70%）：</p><div class="max-h-28 overflow-y-auto border border-orange-200 rounded-lg p-2 bg-orange-50/30">${similarListHtml}</div></div>` : ''}
                                 <div class="flex gap-3 justify-end">
                                     <button id="dup-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">取消导入</button>
                                     <button id="dup-confirm-btn" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md">确认导入（跳过重复）</button>
@@ -10426,12 +10470,12 @@
                 });
                 
                 if (!confirmed) {
-                    console.log('用户取消导入重复数据');
-                    showNotification(`导入已取消，检测到 ${duplicateCount} 条重复数据`, 'warning');
+                    console.log('用户取消导入');
+                    showNotification(`导入已取消`, 'warning');
                     return;
                 }
                 
-                console.log(`用户确认导入，跳过 ${duplicateCount} 条重复数据，导入 ${uniqueNewVehicles.length} 条新数据`);
+                console.log(`用户确认导入，跳过${exactDupCount}条精确重复+${similarCount}条高度相似，导入${uniqueNewVehicles.length}条新数据`);
             }
             
             // === 检测低符合率车型（非重卡二手车业务范围）===
@@ -10548,12 +10592,15 @@
                     // 继续执行，不抛出错误
                 }
                 console.log('importToBuyerRobot: 数据已保存到localStorage');
-                console.log('importToBuyerRobot执行成功，导入新车辆数:', uniqueNewVehicles.length, '跳过重复数:', duplicateCount);
+                console.log('importToBuyerRobot执行成功，导入新车辆数:', uniqueNewVehicles.length, '跳过精确重复:', exactDupCount, '跳过高度相似:', similarCount);
                 
                 // 显示成功通知
                 try {
-                    if (duplicateCount > 0) {
-                        showNotification(`成功导入 ${uniqueNewVehicles.length} 条新数据，跳过 ${duplicateCount} 条重复数据`, 'success');
+                    const skipMsg = [];
+                    if (exactDupCount > 0) skipMsg.push(`跳过${exactDupCount}条重复`);
+                    if (similarCount > 0) skipMsg.push(`跳过${similarCount}条相似`);
+                    if (skipMsg.length > 0) {
+                        showNotification(`成功导入 ${uniqueNewVehicles.length} 条新数据，${skipMsg.join('，')}`, 'success');
                     } else {
                         showNotification(`成功导入 ${uniqueNewVehicles.length} 条数据到采购机器人`, 'success');
                     }
@@ -10566,8 +10613,11 @@
                 const buyerRobotSuccessMessage = document.getElementById('buyer-robot-success-message');
                 const buyerRobotSuccessText = document.getElementById('buyer-robot-success-text');
                 if (buyerRobotPage && !buyerRobotPage.classList.contains('hidden') && buyerRobotSuccessMessage && buyerRobotSuccessText) {
-                    if (duplicateCount > 0) {
-                        buyerRobotSuccessText.textContent = `成功导入 ${uniqueNewVehicles.length} 条新数据，跳过 ${duplicateCount} 条重复数据！`;
+                    if (totalWarning > 0) {
+                        const skipDetail = [];
+                        if (exactDupCount > 0) skipDetail.push(`跳过${exactDupCount}条重复`);
+                        if (similarCount > 0) skipDetail.push(`跳过${similarCount}条相似`);
+                        buyerRobotSuccessText.textContent = `成功导入 ${uniqueNewVehicles.length} 条新数据，${skipDetail.join('，')}！`;
                     } else {
                         buyerRobotSuccessText.textContent = `成功导入 ${uniqueNewVehicles.length} 条数据到采购机器人！`;
                     }
@@ -10919,85 +10969,117 @@
                         return vehicle;
                     });
                     
-                    // 检测重复车辆（基于品牌、型号、年份、里程的相似性）
-                    // 包括与现有车辆的重复，以及导入数据内部的重复
-                    let buyerDuplicateCount = 0;
-                    const buyerDuplicateVehicles = [];
+                    // 检测重复车辆（精确匹配 + 70%相似度模糊匹配）
+                    let buyerExactDupCount = 0;
+                    const buyerExactDuplicateVehicles = [];
+                    let buyerSimilarCount = 0;
+                    const buyerSimilarVehicles = [];
                     const buyerUniqueVehicles = [];
+                    const buyerAllChecked = [];
                     
-                    // 辅助函数：检查两个车辆是否重复（与importToBuyerRobot中相同的逻辑）
+                    function getVehicleFullText(v) {
+                        const row = v.originalData?.originalRow || v.originalData || {};
+                        let text = '';
+                        for (const key in row) { text += String(row[key] || '') + ' '; }
+                        text += (v.brand || '') + ' ' + (v.model || '') + ' ' + (v.condition || '') + ' ';
+                        return text.trim().toLowerCase();
+                    }
+                    
+                    // 中文友好的词组级 Jaccard 相似度
+                    function textSimilarity(s1, s2) {
+                        if (!s1 || !s2) return 0;
+                        // 完全包含则100%
+                        if (s1 === s2) return 1;
+                        if (s1.includes(s2) || s2.includes(s1)) return 1;
+                        // 按空格、标点拆分成词组
+                        const split = (t) => t.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+                        const words1 = new Set(split(s1));
+                        const words2 = new Set(split(s2));
+                        if (words1.size === 0 && words2.size === 0) return 0;
+                        if (words1.size === 0 || words2.size === 0) return 0;
+                        
+                        // Jaccard: |A∩B| / |A∪B|
+                        let intersection = 0;
+                        words1.forEach(w => { if (words2.has(w)) intersection++; });
+                        return intersection / (words1.size + words2.size - intersection);
+                    }
+                    
                     function isDuplicateVehicle(v1, v2) {
-                        // 如果品牌和型号都为空，则比较原始数据
                         if (!v1.brand && !v1.model && !v2.brand && !v2.model) {
-                            // 比较原始数据字符串
                             return JSON.stringify(v1.originalData?.originalRow) === JSON.stringify(v2.originalData?.originalRow);
                         }
-                        
-                        // 比较品牌、型号、年份、里程
                         const brandMatch = (!v1.brand && !v2.brand) || (v1.brand && v2.brand && v1.brand.trim() === v2.brand.trim());
                         const modelMatch = (!v1.model && !v2.model) || (v1.model && v2.model && v1.model.trim() === v2.model.trim());
                         const yearMatch = (!v1.year && !v2.year) || (v1.year && v2.year && String(v1.year).trim() === String(v2.year).trim());
                         const mileageMatch = (!v1.mileage && !v2.mileage) || (v1.mileage && v2.mileage && String(v1.mileage).trim() === String(v2.mileage).trim());
-                        
-                        // 如果品牌和型号都匹配，则认为是重复
                         if (brandMatch && modelMatch) {
-                            // 进一步检查年份和里程，如果都有值且不匹配，可能不是同一辆车
-                            if (v1.year && v2.year && String(v1.year).trim() !== String(v2.year).trim()) {
-                                return false;
-                            }
-                            if (v1.mileage && v2.mileage && String(v1.mileage).trim() !== String(v2.mileage).trim()) {
-                                return false;
-                            }
+                            if (v1.year && v2.year && String(v1.year).trim() !== String(v2.year).trim()) return false;
+                            if (v1.mileage && v2.mileage && String(v1.mileage).trim() !== String(v2.mileage).trim()) return false;
                             return true;
                         }
                         return false;
                     }
                     
-                    // 检查每个新车辆是否重复（与现有车辆或已标记为唯一的车辆）
                     newVehicles.forEach(vehicle => {
-                        let isDuplicate = false;
+                        let isExactDup = false;
+                        let highestSimilarity = 0;
+                        let bestMatch = null;
+                        const newText = getVehicleFullText(vehicle);
                         
-                        // 检查是否与现有车辆重复
                         for (const existingVehicle of existingVehicles) {
                             if (isDuplicateVehicle(vehicle, existingVehicle)) {
-                                isDuplicate = true;
+                                isExactDup = true;
+                                vehicle._dupWith = existingVehicle;
                                 break;
                             }
-                        }
-                        
-                        // 检查是否与已标记为唯一的车辆重复（导入数据内部重复）
-                        if (!isDuplicate) {
-                            for (const uniqueVehicle of buyerUniqueVehicles) {
-                                if (isDuplicateVehicle(vehicle, uniqueVehicle)) {
-                                    isDuplicate = true;
-                                    break;
-                                }
+                            if (!isExactDup) {
+                                const sim = textSimilarity(newText, getVehicleFullText(existingVehicle));
+                                if (sim > highestSimilarity) { highestSimilarity = sim; bestMatch = existingVehicle; }
                             }
                         }
                         
-                        if (isDuplicate) {
-                            buyerDuplicateCount++;
-                            buyerDuplicateVehicles.push(vehicle);
+                        if (!isExactDup) {
+                            for (const checked of buyerAllChecked) {
+                                if (isDuplicateVehicle(vehicle, checked)) { isExactDup = true; break; }
+                            }
+                        }
+                        
+                        if (isExactDup) {
+                            buyerExactDupCount++;
+                            buyerExactDuplicateVehicles.push(vehicle);
+                        } else if (highestSimilarity >= 0.7) {
+                            buyerSimilarCount++;
+                            vehicle._similarity = Math.round(highestSimilarity * 100);
+                            vehicle._similarTo = bestMatch;
+                            buyerSimilarVehicles.push(vehicle);
                         } else {
                             buyerUniqueVehicles.push(vehicle);
+                            buyerAllChecked.push(vehicle);
                         }
                     });
                     
-                    // 如果有重复项，提示用户确认（使用自定义模态框）
-                    if (buyerDuplicateCount > 0) {
+                    const buyerTotalWarning = buyerExactDupCount + buyerSimilarCount;
+                    
+                    // 如果有精确重复或高度相似，弹窗提示
+                    if (buyerTotalWarning > 0) {
                         // 构建重复数据详情列表
-                        let duplicateListHtml = '';
-                        buyerDuplicateVehicles.slice(0, 10).forEach(v => {
+                        let exactListHtml = '';
+                        buyerExactDuplicateVehicles.slice(0, 5).forEach(v => {
                             const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
                             const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
-                            duplicateListHtml += `<div class="flex justify-between items-center py-2 px-3 bg-red-50 rounded mb-2">
-                                <span class="text-sm text-gray-800 truncate flex-1 mr-3" title="${title}">${title}</span>
-                                <span class="text-sm font-medium text-red-600 whitespace-nowrap">${price}</span>
-                            </div>`;
+                            exactListHtml += `<div class="flex justify-between items-center py-1.5 px-3 bg-red-50 rounded mb-1 border border-red-200"><span class="text-xs text-gray-800 truncate flex-1 mr-2" title="${title}">${title}</span><span class="text-xs font-medium text-red-600 whitespace-nowrap">${price}</span></div>`;
                         });
-                        if (buyerDuplicateVehicles.length > 10) {
-                            duplicateListHtml += `<div class="text-sm text-gray-500 text-center py-1">...还有 ${buyerDuplicateVehicles.length - 10} 条重复数据</div>`;
-                        }
+                        if (buyerExactDuplicateVehicles.length > 5) exactListHtml += '<div class="text-xs text-gray-400 text-center py-1">...还有 ' + (buyerExactDuplicateVehicles.length - 5) + ' 条</div>';
+                        
+                        let similarListHtml = '';
+                        buyerSimilarVehicles.slice(0, 5).forEach(v => {
+                            const title = v.originalData?.originalRow?.['车辆标题'] || v.brand || v.model || '未命名车辆';
+                            const sim = v._similarity || 70;
+                            const similarTitle = v._similarTo ? (v._similarTo.brand || v._similarTo.model || '已有车辆') : '已有车辆';
+                            const price = v.evaluatedPrice ? (v.evaluatedPrice >= 10000 ? (v.evaluatedPrice/10000).toFixed(1)+'万' : v.evaluatedPrice+'元') : '-';
+                            similarListHtml += '<div class="flex justify-between items-center py-1.5 px-3 bg-orange-50 rounded mb-1 border border-orange-200"><div class="flex-1 mr-2 min-w-0"><span class="text-xs text-gray-800 truncate block" title="' + title + '">' + title + '</span><span class="text-xs text-orange-500">相似度 ' + sim + '% → 疑似与「' + similarTitle + '」重复</span></div><span class="text-xs font-medium text-orange-600 whitespace-nowrap">' + price + '</span></div>';
+                        });
+                        if (buyerSimilarVehicles.length > 5) similarListHtml += '<div class="text-xs text-gray-400 text-center py-1">...还有 ' + (buyerSimilarVehicles.length - 5) + ' 条</div>';
                         
                         // 创建自定义模态框
                         const modalOverlay = document.createElement('div');
@@ -11008,21 +11090,18 @@
                                 <div class="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
                                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
                                         <i class="fas fa-exclamation-triangle"></i>
-                                        检测到重复数据
+                                        检测到重复/相似数据
                                     </h3>
                                 </div>
                                 <div class="p-6">
-                                    <p class="text-gray-700 mb-4">
-                                        共检测到 <span class="font-bold text-red-600 text-lg">${buyerDuplicateCount}</span> 条重复数据，
+                                    <p class="text-gray-700 mb-3 text-sm">
+                                        ${buyerExactDupCount > 0 ? '共 <span class="font-bold text-red-600">' + buyerExactDupCount + '</span> 条<span class="text-red-500">精确重复</span>数据，' : ''}
+                                        ${buyerSimilarCount > 0 ? '<span class="font-bold text-orange-500">' + buyerSimilarCount + '</span> 条<span class="text-orange-500">高度相似（≥70%）</span>数据，' : ''}
                                         将被跳过不导入。
-                                        <span class="font-bold text-green-600">${buyerUniqueVehicles.length}</span> 条新数据将正常导入。
+                                        <br><span class="font-bold text-green-600">${buyerUniqueVehicles.length}</span> 条新数据将正常导入。
                                     </p>
-                                    <div class="mb-4">
-                                        <p class="text-xs text-gray-500 mb-2">重复数据列表：</p>
-                                        <div class="max-h-48 overflow-y-auto border border-red-200 rounded-lg p-2">
-                                            ${duplicateListHtml}
-                                        </div>
-                                    </div>
+                                    ${buyerExactDupCount > 0 ? '<div class="mb-3"><p class="text-xs text-red-400 mb-1 font-medium">🔴 精确重复：</p><div class="max-h-28 overflow-y-auto border border-red-200 rounded-lg p-2 bg-red-50/30">' + exactListHtml + '</div></div>' : ''}
+                                    ${buyerSimilarCount > 0 ? '<div class="mb-3"><p class="text-xs text-orange-400 mb-1 font-medium">🟠 高度相似（≥70%）：</p><div class="max-h-28 overflow-y-auto border border-orange-200 rounded-lg p-2 bg-orange-50/30">' + similarListHtml + '</div></div>' : ''}
                                     <div class="flex gap-3 justify-end">
                                         <button id="duplicate-cancel-btn" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
                                             取消导入
@@ -11055,12 +11134,12 @@
                             };
                         }).then(confirmed => {
                             if (!confirmed) {
-                                console.log('用户取消导入重复数据');
-                                showNotification(`导入已取消，检测到 ${buyerDuplicateCount} 条重复数据`, 'warning');
+                                console.log('用户取消导入');
+                                showNotification('导入已取消', 'warning');
                                 return;
                             }
                             
-                            console.log(`用户确认导入，跳过 ${buyerDuplicateCount} 条重复数据，导入 ${buyerUniqueVehicles.length} 条唯一数据`);
+                            console.log(`用户确认导入，跳过${buyerExactDupCount}条精确重复+${buyerSimilarCount}条高度相似，导入${buyerUniqueVehicles.length}条新数据`);
                             
                             // 继续执行导入逻辑...
                             continueBuyerImport();
