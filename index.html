@@ -4344,6 +4344,48 @@
         // 云端轮询（只读，每30秒检查云端是否有新数据，自动拉取到本地）
         let cloudPollTimer = null;
         let cloudPollEnabled = true;
+        
+        // 已删除的云端记录ID集合（防止轮询时被重新拉回来）— 持久化到 localStorage
+        const DELETED_CLOUD_IDS_KEY = 'truck_deleted_cloud_ids';
+        let deletedCloudIds = new Set();
+        
+        function loadDeletedCloudIds() {
+            try {
+                const saved = localStorage.getItem(DELETED_CLOUD_IDS_KEY);
+                if (saved) {
+                    deletedCloudIds = new Set(JSON.parse(saved));
+                    console.log('已加载删除黑名单:', deletedCloudIds.size, '条记录');
+                }
+            } catch (e) { console.warn('加载删除黑名单失败:', e); }
+        }
+        
+        function saveDeletedCloudIds() {
+            try {
+                localStorage.setItem(DELETED_CLOUD_IDS_KEY, JSON.stringify([...deletedCloudIds]));
+            } catch (e) { console.warn('保存删除黑名单失败:', e); }
+        }
+        
+        // 从云端删除单条记录
+        async function deleteFromCloud(vehicleId) {
+            if (!cloudbaseInitialized || !cloudbaseDb) return false;
+            try {
+                const coll = cloudbaseDb.collection('pending_vehicles');
+                // 尝试按 id 或 _cloudId 删除
+                let result = await coll.where({ id: vehicleId }).remove();
+                if (result.deleted === 0) {
+                    result = await coll.where({ _id: vehicleId.replace(/^bv\d+/, '') }).remove();
+                }
+                if (result.deleted > 0) {
+                    console.log(`☁️ 云端已删除记录: ${vehicleId} (${result.deleted}条)`);
+                    return true;
+                }
+                console.warn(`⚠️ 云端删除未找到: ${vehicleId}`);
+                return false;
+            } catch (e) {
+                console.warn('云端删除失败:', e.message);
+                return false;
+            }
+        }
         function startCloudPolling() {
             if (!cloudbaseInitialized) return;
             if (cloudPollTimer) clearInterval(cloudPollTimer);
@@ -4869,7 +4911,27 @@
                             return false;
                         }
                         return true;
+                                        return true;
+                        });
+                    // 🔑 低符合率关键词过滤（防止无关车型从云端混入）
+                    const lowMatchKws = getLowMatchKeywords();
+                    const beforeLowFilter = freshCloudPending.length;
+                    freshCloudPending = freshCloudPending.filter(p => {
+                        const row = p.originalData?.originalRow || p.originalData || {};
+                        const title = row['车辆标题'] || p.brand || p.model || '';
+                        const type = row['车辆类型'] || row['品类'] || '';
+                        const allText = (title + ' ' + type + ' ' + Object.values(row).join(' ')).toLowerCase();
+                        for (const kw of lowMatchKws) {
+                            if (allText.includes(kw.toLowerCase())) {
+                                console.log(`🚫 云端加载：过滤低符合率车型「${title.slice(0,20)}」含关键词「${kw}」`);
+                                return false;
+                            }
+                        }
+                        return true;
                     });
+                    if (freshCloudPending.length < beforeLowFilter) {
+                        console.log(`🚫 云端加载：共过滤 ${beforeLowFilter - freshCloudPending.length} 条低符合率车型`);
+                    }
                     // 🔑 _synced 合并：云端为准，本地仅保留未同步的新数据
                     const cloudPIds = new Set(freshCloudPending.map(p => p.id));
                     freshCloudPending.forEach(p => { p._synced = true; });
@@ -4916,6 +4978,52 @@
         }
 
         // 合并云端数据到本地（只追加不删除，保护本地数据不丢失）
+        // 自动清理车辆列表中的重复数据（基于内容相似度）
+        function deduplicateVehicleList() {
+            const list = mockData.buyerRobot.vehicleList;
+            if (list.length <= 1) return 0;
+            
+            function getVehicleText(v) {
+                let t = '';
+                for (const k in v) { if (typeof v[k] === 'string') t += v[k] + ' '; }
+                return t.trim().toLowerCase();
+            }
+            
+            function jaccardSimilar(s1, s2) {
+                if (!s1 || !s2) return 0;
+                if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return 1;
+                const split = (t) => t.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+                const w1 = new Set(split(s1)), w2 = new Set(split(s2));
+                if (w1.size === 0 || w2.size === 0) return 0;
+                let inter = 0; w1.forEach(w => { if (w2.has(w)) inter++; });
+                return inter / (w1.size + w2.size - inter);
+            }
+            
+            // 两两比较，保留第一条，移除后续重复
+            const keep = [];
+            const remove = new Set();
+            
+            for (let i = 0; i < list.length; i++) {
+                if (remove.has(i)) continue;
+                keep.push(list[i]);
+                for (let j = i + 1; j < list.length; j++) {
+                    if (remove.has(j)) continue;
+                    if (jaccardSimilar(getVehicleText(list[i]), getVehicleText(list[j])) >= 0.7) {
+                        remove.add(j);
+                    }
+                }
+            }
+            
+            if (keep.length < list.length) {
+                mockData.buyerRobot.vehicleList = keep;
+                mockData.pendingVehicles = mockData.pendingVehicles.filter(p => 
+                    keep.some(k => k.id === p.id)
+                );
+                return list.length - keep.length;
+            }
+            return 0;
+        }
+
         async function mergeDataFromCloud() {
             if (!cloudbaseInitialized) {
                 console.log('CloudBase 未初始化，跳过云端合并');
@@ -4942,8 +5050,93 @@
                         return pData;
                     });
                     
-                    // 只添加本地不存在的新数据
-                    const newVehicles = cloudPending.filter(cv => !localBuyerIds.has(cv.id));
+                    // 第一步：过滤掉ID已存在的
+                    // 跳过ID已存在的 + 已被用户手动删除的记录
+                    const idUnique = cloudPending.filter(cv => !localBuyerIds.has(cv.id) && !deletedCloudIds.has(cv.id));
+                    
+                    // 第二步：基于内容去重（使用Jaccard词组相似度，阈值70%）
+                    function getVehicleText(v) {
+                        let t = '';
+                        for (const k in v) { if (typeof v[k] === 'string') t += v[k] + ' '; }
+                        return t.trim().toLowerCase();
+                    }
+                    function jaccardSimilar(s1, s2) {
+                        if (!s1 || !s2) return 0;
+                        if (s1 === s2 || s1.includes(s2) || s2.includes(s1)) return 1;
+                        const split = (t) => t.replace(/[,，。；：!！?？\n\r\t]+/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+                        const w1 = new Set(split(s1)), w2 = new Set(split(s2));
+                        if (w1.size === 0 || w2.size === 0) return 0;
+                        let inter = 0; w1.forEach(w => { if (w2.has(w)) inter++; });
+                        return inter / (w1.size + w2.size - inter);
+                    }
+                    
+                    const existingTexts = mockData.buyerRobot.vehicleList.map(v => getVehicleText(v));
+                    const newVehicles = [];
+                    let skippedByContent = 0;
+                    
+                    // 🔑 第三步：低符合率关键词过滤（防止云端无关车型混入采购列表）
+                    const LOW_MATCH_KEYWORDS = getLowMatchKeywords();
+                    const lowMatchFiltered = [];
+                    let skippedByLowMatch = 0;
+                    
+                    for (const cv of idUnique) {
+                        const row = cv.originalData?.originalRow || cv.originalData || {};
+                        const title = row['车辆标题'] || cv.brand || cv.model || '';
+                        const type = row['车辆类型'] || row['品类'] || '';
+                        const allText = (title + ' ' + type + ' ' + Object.values(row).join(' ')).toLowerCase();
+                        
+                        let isLowMatch = false;
+                        for (const kw of LOW_MATCH_KEYWORDS) {
+                            if (allText.includes(kw.toLowerCase())) {
+                                isLowMatch = true;
+                                break;
+                            }
+                        }
+                        
+                        if (isLowMatch) {
+                            skippedByLowMatch++;
+                        } else {
+                            lowMatchFiltered.push(cv);
+                        }
+                    }
+                    
+                    if (skippedByLowMatch > 0) {
+                        console.log(`🚫 云端合并：过滤低符合率车型 ${skippedByLowMatch} 条`);
+                    }
+                    
+                    // 第四步：内容相似度去重
+                    for (const cv of lowMatchFiltered) {
+                        const cvText = getVehicleText(cv);
+                        let isDuplicate = false;
+                        
+                        for (const exText of existingTexts) {
+                            if (jaccardSimilar(cvText, exText) >= 0.7) {
+                                isDuplicate = true;
+                                skippedByContent++;
+                                break;
+                            }
+                        }
+                        
+                        // 也检查本次待加入的列表内部是否有重复
+                        if (!isDuplicate) {
+                            for (const nv of newVehicles) {
+                                if (jaccardSimilar(cvText, getVehicleText(nv)) >= 0.7) {
+                                    isDuplicate = true;
+                                    skippedByContent++;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!isDuplicate) {
+                            newVehicles.push(cv);
+                            existingTexts.push(cvText); // 防止后续重复
+                        }
+                    }
+                    
+                    if (skippedByContent > 0) {
+                        console.log(`⚠️ 云端合并：因内容相似(≥70%)跳过 ${skippedByContent} 条重复数据`);
+                    }
                     
                     if (newVehicles.length > 0) {
                         mockData.buyerRobot.vehicleList.push(...newVehicles);
@@ -4958,6 +5151,16 @@
                 }
                 
                 console.log(`=== 云端合并完成: 本地共 ${mockData.buyerRobot.vehicleList.length} 条 (新增${addedCount}) ===`);
+                
+                // 自动清理现有数据中的重复项
+                const beforeDedup = mockData.buyerRobot.vehicleList.length;
+                deduplicateVehicleList();
+                const afterDedup = mockData.buyerRobot.vehicleList.length;
+                if (afterDedup < beforeDedup) {
+                    console.log(`🧹 自动去重：从 ${beforeDedup} 条清理到 ${afterDedup} 条（移除 ${beforeDedup - afterDedup} 条重复）`);
+                    saveDataToStorage();
+                    addedCount += (beforeDedup - afterDedup); // 标记为有变更
+                }
                 
                 if (addedCount > 0) {
                     saveDataToStorage();
@@ -6026,8 +6229,28 @@
             );
             const uniqueSoldVehicleIds = [...new Set(validSalesTransactions.map(t => t.vehicleId).filter(id => id))];
             const actualSoldCount = uniqueSoldVehicleIds.length;
-            // 计算待采购车辆数量（pendingVehicles，与云端同步）
-            const actualPendingCount = mockData.pendingVehicles.length;
+            
+            // 计算待采购车辆数量（使用 vehicleList，与采购员机器人状态面板一致）
+            // 🔑 用 vehicleList 而非 pendingVehicles，避免两数组不同步导致数字对不上
+            const actualPendingCount = mockData.buyerRobot.vehicleList.length;
+            
+            // 如果 pendingVehicles 和 vehicleList 不同步，自动修正
+            if (mockData.pendingVehicles.length !== mockData.buyerRobot.vehicleList.length) {
+                console.warn(`⚠️ 数据不一致：pendingVehicles(${mockData.pendingVehicles.length}) ≠ vehicleList(${mockData.buyerRobot.vehicleList.length})，以 vehicleList 为准同步`);
+                // 以 vehicleList 为准重建 pendingVehicles（保留 _synced 等云端标记）
+                const syncedIds = new Set(mockData.buyerRobot.vehicleList.map(v => v.id));
+                const survivingPending = mockData.pendingVehicles.filter(p => {
+                    if (syncedIds.has(p.id)) return true;
+                    // 保留本地新增但尚未在 vehicleList 中的数据
+                    return !p._synced;
+                });
+                const missingInPending = mockData.buyerRobot.vehicleList.filter(v => 
+                    !survivingPending.some(p => p.id === v.id)
+                );
+                mockData.pendingVehicles = [...survivingPending, ...missingInPending];
+                console.log(`已修正：pendingVehicles 现为 ${mockData.pendingVehicles.length} 条`);
+            }
+            
             // 计算销售金额（从交易记录中获取销售总额，确保与图表数据一致）
             const actualSalesAmount = validSalesTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
             
@@ -6561,9 +6784,11 @@
                 container.querySelectorAll('.remove-kw-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const idx = parseInt(this.dataset.index);
+                        const removed = currentLowMatchKeywords[idx];
                         currentLowMatchKeywords.splice(idx, 1);
                         saveLowMatchKeywords(currentLowMatchKeywords);
                         renderLowMatchKeywordTags();
+                        addYingdaoLog(`删除低符合率关键词「${removed}」，当前共${currentLowMatchKeywords.length}个`, 'info');
                     });
                 });
             }
@@ -6582,6 +6807,7 @@
                 input.value = '';
                 renderLowMatchKeywordTags();
                 input.focus();
+                addYingdaoLog(`添加低符合率关键词「${kw}」，当前共${currentLowMatchKeywords.length}个`, 'success');
             }
             
             const addLowMatchBtn = document.getElementById('add-lowmatch-keyword-btn');
@@ -6603,6 +6829,7 @@
             if (saveKwBtn) {
                 saveKwBtn.addEventListener('click', function() {
                     showNotification(`当前共 ${currentLowMatchKeywords.length} 个关键词（已自动保存）`, 'success');
+                    addYingdaoLog(`低符合率关键词确认保存，共${currentLowMatchKeywords.length}个`, 'info');
                 });
             }
             
@@ -6613,6 +6840,7 @@
                         currentLowMatchKeywords = resetLowMatchKeywords();
                         renderLowMatchKeywordTags();
                         showNotification('已恢复默认关键词', 'success');
+                        addYingdaoLog(`低符合率关键词已恢复默认，共${currentLowMatchKeywords.length}个`, 'warning');
                     }
                 });
             }
@@ -6640,9 +6868,11 @@
                 container.querySelectorAll('.remove-rkw-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const idx = parseInt(this.dataset.index);
+                        const removed = currentRecommendKeywords[idx];
                         currentRecommendKeywords.splice(idx, 1);
                         saveRecommendedKeywords(currentRecommendKeywords);
                         renderRecommendKeywordTags();
+                        addYingdaoLog(`删除建议采购关键词「${removed}」，当前共${currentRecommendKeywords.length}个`, 'info');
                     });
                 });
             }
@@ -6660,6 +6890,7 @@
                 saveRecommendedKeywords(currentRecommendKeywords);
                 input.value = '';
                 renderRecommendKeywordTags();
+                addYingdaoLog(`添加建议采购关键词「${kw}」，当前共${currentRecommendKeywords.length}个`, 'success');
                 input.focus();
             }
             
@@ -6677,6 +6908,7 @@
             if (saveRkwBtn) {
                 saveRkwBtn.addEventListener('click', function() {
                     showNotification(`当前共 ${currentRecommendKeywords.length} 个建议采购关键词（已自动保存）`, 'success');
+                    addYingdaoLog(`建议采购关键词确认保存，共${currentRecommendKeywords.length}个`, 'info');
                 });
             }
             
@@ -6687,6 +6919,7 @@
                         currentRecommendKeywords = resetRecommendedKeywords();
                         renderRecommendKeywordTags();
                         showNotification('已恢复默认建议采购关键词', 'success');
+                        addYingdaoLog(`建议采购关键词已恢复默认，共${currentRecommendKeywords.length}个`, 'warning');
                     }
                 });
             }
@@ -7056,6 +7289,9 @@
             // 初始化车辆数据
             initVehicleData();
             
+            // 恢复已删除云端记录黑名单
+            loadDeletedCloudIds();
+            
             // 验证加载的数据
             validateLoadedData();
             
@@ -7412,8 +7648,8 @@
             const recommendedEl = document.getElementById('buyer-robot-recommended');
             
             if (totalSearchedEl) {
-                // 累计已搜寻基于 pendingVehicles（云端同步）
-                totalSearchedEl.textContent = mockData.pendingVehicles.length;
+                // 累计已搜寻基于 vehicleList（与表格显示一致）
+                totalSearchedEl.textContent = mockData.buyerRobot.vehicleList.length;
             }
             
             if (todaySearchedEl) {
@@ -9590,6 +9826,12 @@
             if (pendingIndex !== -1) {
                 mockData.pendingVehicles.splice(pendingIndex, 1);
                 console.log('车辆已从 pendingVehicles 中移除（已入库）:', purchaseVehicle.id);
+                
+                // 同步删除云端记录，防止轮询回拉
+                if (purchaseVehicle._cloudId) deletedCloudIds.add(purchaseVehicle._cloudId);
+                deletedCloudIds.add(purchaseVehicle.id);
+                saveDeletedCloudIds(); // 持久化黑名单
+                deleteFromCloud(purchaseVehicle.id);
             }
             
             // 将车辆ID添加到最近添加列表，用于高亮显示
@@ -10472,7 +10714,7 @@
                 if (!confirmed) {
                     console.log('用户取消导入');
                     showNotification(`导入已取消`, 'warning');
-                    return;
+                    return { cancelled: true, reason: 'duplicate' };
                 }
                 
                 console.log(`用户确认导入，跳过${exactDupCount}条精确重复+${similarCount}条高度相似，导入${uniqueNewVehicles.length}条新数据`);
@@ -10567,7 +10809,7 @@
                 if (!lowConfirmed) {
                     console.log(`用户取消导入：检测到${lowMatchCount}条低符合率车型`);
                     showNotification('导入已取消', 'warning');
-                    return;
+                    return { cancelled: true, reason: 'lowMatch' };
                 }
                 
                 console.log(`用户确认导入，跳过${lowMatchCount}条低符合率，导入${highQualityVehicles.length}条有效数据`);
@@ -11116,7 +11358,7 @@
                         document.body.appendChild(modalOverlay);
                         
                         // 使用 Promise 等待用户选择
-                        await new Promise(resolve => {
+                        const dupConfirmed = await new Promise(resolve => {
                             document.getElementById('duplicate-cancel-btn').onclick = () => {
                                 modalOverlay.remove();
                                 resolve(false);
@@ -11132,22 +11374,17 @@
                                     resolve(false);
                                 }
                             };
-                        }).then(confirmed => {
-                            if (!confirmed) {
-                                console.log('用户取消导入');
-                                showNotification('导入已取消', 'warning');
-                                return;
-                            }
-                            
-                            console.log(`用户确认导入，跳过${buyerExactDupCount}条精确重复+${buyerSimilarCount}条高度相似，导入${buyerUniqueVehicles.length}条新数据`);
-                            
-                            // 继续执行导入逻辑...
-                            continueBuyerImport();
                         });
-                    } else {
-                        // 无重复，直接导入
-                        continueBuyerImport();
+                        
+                        if (!dupConfirmed) {
+                            console.log('用户取消导入（重复检测）');
+                            showNotification('导入已取消', 'warning');
+                            throw new Error('用户取消导入');
+                        }
+                        
+                        console.log(`用户确认导入，跳过${buyerExactDupCount}条精确重复+${buyerSimilarCount}条高度相似，导入${buyerUniqueVehicles.length}条新数据`);
                     }
+                    // 注意：暂不调用 continueBuyerImport()，等低符合率检测也通过后再统一导入
                     
                     // === 检测低符合率车型（非重卡二手车业务范围）===
                     const LOW_MATCH_KEYWORDS = getLowMatchKeywords();
@@ -11238,12 +11475,15 @@
                         if (!confirmed) {
                             console.log(`用户取消导入：检测到${lowMatchCount}条低符合率车型`);
                             showNotification('导入已取消', 'warning');
-                            return;
+                            throw new Error('用户取消导入');
                         }
                         
                         console.log(`用户确认导入，跳过${lowMatchCount}条低符合率，导入${highQualityVehicles.length}条有效数据`);
                         buyerUniqueVehicles = highQualityVehicles;
                     }
+                    
+                    // 通过重复检测和低符合率检测后，统一执行导入
+                    continueBuyerImport();
                     
                     // 继续导入的内部函数
                     function continueBuyerImport() {
@@ -15186,6 +15426,8 @@ function addNewVehicle() {
                         // 从采购员机器人车辆列表中查找并移除车辆
                         const vehicleIndex = mockData.buyerRobot.vehicleList.findIndex(v => v.id == vehicleId);
                         if (vehicleIndex !== -1) {
+                            // 🔑 先保存车辆引用（用于云端删除），再从数组中移除
+                            const deletedVehicle = mockData.buyerRobot.vehicleList[vehicleIndex];
                             mockData.buyerRobot.vehicleList.splice(vehicleIndex, 1);
                             console.log('采购记录已删除，车辆ID:', vehicleId);
                             
@@ -15194,6 +15436,22 @@ function addNewVehicle() {
                             if (pendingIndex !== -1) {
                                 mockData.pendingVehicles.splice(pendingIndex, 1);
                                 console.log('pendingVehicles 同步删除，车辆ID:', vehicleId);
+                            }
+                            
+                            // 🔑 关键：同步删除云端记录，防止轮询时被拉回来
+                            if (deletedVehicle) {
+                                // 记录到已删除集合（防止回拉）
+                                if (deletedVehicle._cloudId) {
+                                    deletedCloudIds.add(deletedVehicle._cloudId);
+                                    console.log('已加入云端黑名单ID:', deletedVehicle._cloudId);
+                                }
+                                deletedCloudIds.add(vehicleId);
+                                saveDeletedCloudIds(); // 持久化黑名单
+                                
+                                // 异步删除云端记录
+                                deleteFromCloud(vehicleId).then(ok => {
+                                    if (ok) console.log(`☁️ 云端删除成功: ${vehicleId}`);
+                                });
                             }
                             
                             // 重新渲染采购员机器人表格
@@ -15740,10 +15998,14 @@ function addNewVehicle() {
                         }
                         
                         try {
-                            await importToBuyerRobot(parsedExcelData);
-                            setTimeout(renderBuyerRobotTable, 100);
-                            addYingdaoLog(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
-                            showNotification(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
+                            const result = await importToBuyerRobot(parsedExcelData);
+                            if (result && result.cancelled) {
+                                console.log('导入已取消，不显示成功通知:', result.reason);
+                            } else {
+                                setTimeout(renderBuyerRobotTable, 100);
+                                addYingdaoLog(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
+                                showNotification(`成功导入${parsedExcelData.length}条数据到采购机器人`, 'success');
+                            }
                         } catch (error) {
                             console.error('导入到采购机器人失败:', error);
                             showNotification(`导入失败: ${error.message}`, 'error');
@@ -15768,23 +16030,27 @@ function addNewVehicle() {
                         }
                         
                         try {
-                            await importToBuyerRobot(parsedExcelData);
-                            // 隐藏模态框
-                            const modal = document.getElementById('data-preview-modal');
-                            if (modal) {
-                                modal.classList.add('hidden');
+                            const result = await importToBuyerRobot(parsedExcelData);
+                            if (result && result.cancelled) {
+                                console.log('导入已取消（预览），不执行后续操作:', result.reason);
+                            } else {
+                                // 隐藏模态框
+                                const modal = document.getElementById('data-preview-modal');
+                                if (modal) {
+                                    modal.classList.add('hidden');
+                                }
+                                // 导航到采购员机器人页面
+                                const targetPage = document.getElementById('buyer-robot-page');
+                                if (targetPage) {
+                                    const allPages = document.querySelectorAll('.page');
+                                    allPages.forEach(page => page.classList.add('hidden'));
+                                    targetPage.classList.remove('hidden');
+                                    updateMenuHighlight('buyer-robot');
+                                    // 渲染采购员机器人表格
+                                    setTimeout(renderBuyerRobotTable, 100);
+                                }
+                                showNotification(`成功导入 ${parsedExcelData.length} 条数据到采购机器人`, 'success');
                             }
-                            // 导航到采购员机器人页面
-                            const targetPage = document.getElementById('buyer-robot-page');
-                            if (targetPage) {
-                                const allPages = document.querySelectorAll('.page');
-                                allPages.forEach(page => page.classList.add('hidden'));
-                                targetPage.classList.remove('hidden');
-                                updateMenuHighlight('buyer-robot');
-                                // 渲染采购员机器人表格
-                                setTimeout(renderBuyerRobotTable, 100);
-                            }
-                            showNotification(`成功导入 ${parsedExcelData.length} 条数据到采购机器人`, 'success');
                         } catch (error) {
                             console.error('导入到采购机器人失败:', error);
                             showNotification(`导入失败: ${error.message}`, 'error');
