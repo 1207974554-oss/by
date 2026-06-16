@@ -4814,33 +4814,63 @@
                         console.log(`⏰ 过滤掉 ${cloudVehicles.length - freshCloudVehicles.length} 条过期云端记录`);
                     }
                     
-                    // 🔑 全新合并策略：云端为准，本地仅保留未同步的新增数据
+                    // 🔑 智能合并策略：逐条比较 _syncTime，保留更新的版本
                     const cloudVehicleMap = new Map(freshCloudVehicles.map(v => [v.id, v]));
                     const cloudIds = new Set(cloudVehicleMap.keys());
                     let deletedByOthers = 0;
                     let keptLocalNew = 0;
+                    let keptLocalNewer = 0;
                     
-                    // 1. 找出本地中 _synced=true 但云端不存在的 → 被其他设备删了 → 丢弃
-                    const survivingLocal = mockData.vehicles.filter(lv => {
-                        if (cloudIds.has(lv.id)) return false; // 云端有，用云端的
+                    // 1. 逐条处理：ID相同则比较时间戳保留最新，ID只在本地 → _synced判断
+                    const mergedVehicles = [];
+                    const localProcessedIds = new Set();
+                    
+                    for (const cv of freshCloudVehicles) {
+                        cv._synced = true;
+                        const localMatch = mockData.vehicles.find(lv => lv.id === cv.id);
+                        
+                        if (localMatch) {
+                            // 本地和云端都有 → 比较 _syncTime 保留最新
+                            localProcessedIds.add(lv.id);
+                            const cloudTime = cv._syncTime ? new Date(cv._syncTime).getTime() : 0;
+                            const localTime = localMatch._syncTime ? new Date(localMatch._syncTime).getTime() : 0;
+                            
+                            if (localTime > 0 && cloudTime > 0 && localTime > cloudTime) {
+                                // 本地更新 → 保留本地版本
+                                localMatch._synced = true;
+                                mergedVehicles.push(localMatch);
+                                keptLocalNewer++;
+                            } else {
+                                // 云端更新或同时间 → 使用云端版本
+                                mergedVehicles.push(cv);
+                            }
+                        } else {
+                            // 仅在云端存在 → 直接加入
+                            mergedVehicles.push(cv);
+                        }
+                    }
+                    
+                    // 2. 处理仅在本地存在的车辆
+                    for (const lv of mockData.vehicles) {
+                        if (localProcessedIds.has(lv.id)) continue; // 已在上面处理
                         if (lv._synced === true) {
+                            // 已同步过但云端不存在 → 被其他设备删了
                             deletedByOthers++;
                             console.log(`🗑️ 云端已删除车辆，同步移除: ${lv.id}`);
-                            return false; // 已同步过但云端没了 → 被删了
+                        } else {
+                            // 本地新增未同步 → 保留
+                            lv._synced = false; // 保持未同步状态
+                            mergedVehicles.push(lv);
+                            keptLocalNew++;
                         }
-                        keptLocalNew++;
-                        return true; // 本地新增、尚未同步的数据，保留
-                    });
+                    }
                     
-                    // 2. 云端数据覆盖本地对应的（最新版本），并标记 _synced
-                    freshCloudVehicles.forEach(cv => { cv._synced = true; });
-                    
-                    // 3. 合并：云端最新版 + 本地未同步新数据
-                    mockData.vehicles = [...freshCloudVehicles, ...survivingLocal];
+                    mockData.vehicles = mergedVehicles;
                     
                     if (deletedByOthers > 0) console.log(`🗑️ 检测到其他设备共删除 ${deletedByOthers} 辆车`);
                     if (keptLocalNew > 0) console.log(`📝 保留本地未同步车辆 ${keptLocalNew} 辆`);
-                    console.log(`🔄 合并完成：云端 ${freshCloudVehicles.length} 辆 + 本地新 ${keptLocalNew} 辆 = 共 ${mockData.vehicles.length} 辆`);
+                    if (keptLocalNewer > 0) console.log(`🆕 本地版本更新，保留本地 ${keptLocalNewer} 辆`);
+                    console.log(`🔄 合并完成：共 ${mockData.vehicles.length} 辆`);
                 } else if (vehiclesResult && vehiclesResult.data) {
                     // 云端数据为空（被其他端口清空了）→ 清除本地已同步的数据
                     const beforeCount = mockData.vehicles.length;
@@ -6103,15 +6133,8 @@
         function updateDashboardCounts() {
             // 计算实际库存数量（状态为"库存中"的车辆）
             const actualInventoryCount = mockData.vehicles.filter(v => v.status === '库存中').length;
-            // 计算已售车辆数量（优先从交易记录中获取唯一销售记录，确保数据一致性）
-            const salesTransactions = mockData.transactions.filter(t => t.type === '销售');
-            // 只计算那些车辆仍然存在的交易记录（避免已删除车辆的历史数据影响）
-            const existingVehicleIds = new Set(mockData.vehicles.map(v => v.id));
-            const validSalesTransactions = salesTransactions.filter(t => 
-                t.vehicleId && existingVehicleIds.has(t.vehicleId)
-            );
-            const uniqueSoldVehicleIds = [...new Set(validSalesTransactions.map(t => t.vehicleId).filter(id => id))];
-            const actualSoldCount = uniqueSoldVehicleIds.length;
+            // 计算已售车辆数量（基于车辆状态，与其他页面统计一致）
+            const actualSoldCount = mockData.vehicles.filter(v => v.status === '已售出').length;
             
             // 计算待采购车辆数量（使用 vehicleList，与采购员机器人状态面板一致）
             // 🔑 用 vehicleList 而非 pendingVehicles，避免两数组不同步导致数字对不上
@@ -6134,24 +6157,18 @@
                 console.log(`已修正：pendingVehicles 现为 ${mockData.pendingVehicles.length} 条`);
             }
             
-            // 计算销售金额（从交易记录中获取销售总额，确保与图表数据一致）
-            const actualSalesAmount = validSalesTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+            // 计算销售金额（从交易记录中获取销售总额）
+            const allSalesTransactions = mockData.transactions.filter(t => t.type === '销售');
+            const actualSalesAmount = allSalesTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
             
             // 验证数据一致性（可选，用于调试）
-            const soldCountFromVehicles = mockData.vehicles.filter(v => v.status === '已售出').length;
             const salesAmountFromVehicles = mockData.vehicles
                 .filter(v => v.status === '已售出')
                 .reduce((sum, vehicle) => sum + (vehicle.sellingPrice || 0), 0);
-            if (actualSoldCount !== soldCountFromVehicles || actualSalesAmount !== salesAmountFromVehicles) {
-                console.warn('销售数据不一致:', {
-                    soldCountFromTransactions: actualSoldCount,
-                    soldCountFromVehicles: soldCountFromVehicles,
-                    salesAmountFromTransactions: actualSalesAmount,
-                    salesAmountFromVehicles: salesAmountFromVehicles,
-                    transactionCount: validSalesTransactions.length,
-                    uniqueVehicleIds: uniqueSoldVehicleIds,
-                    allTransactionCount: salesTransactions.length,
-                    existingVehicleCount: existingVehicleIds.size
+            if (Math.abs(actualSalesAmount - salesAmountFromVehicles) > 100) {
+                console.warn('销售金额不一致:', {
+                    fromTransactions: actualSalesAmount,
+                    fromVehicles: salesAmountFromVehicles,
                 });
             }
             
