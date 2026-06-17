@@ -4831,11 +4831,25 @@
                         
                         if (localMatch) {
                             // 本地和云端都有 → 比较 _syncTime 保留最新
+                            // 🔑 本地无 _syncTime = 刚修改未同步 = 优先保留
                             localProcessedIds.add(localMatch.id);
                             const cloudTime = cv._syncTime ? new Date(cv._syncTime).getTime() : 0;
                             const localTime = localMatch._syncTime ? new Date(localMatch._syncTime).getTime() : 0;
                             
-                            if (localTime > 0 && cloudTime > 0 && localTime > cloudTime) {
+                            if (localTime === 0 && cloudTime === 0) {
+                                // 都没同步过 → 保留本地（本地是更新版本）
+                                localMatch._synced = true;
+                                mergedVehicles.push(localMatch);
+                                keptLocalNewer++;
+                            } else if (localTime === 0) {
+                                // 本地新数据未同步 → 保留本地
+                                localMatch._synced = true;
+                                mergedVehicles.push(localMatch);
+                                keptLocalNewer++;
+                            } else if (cloudTime === 0) {
+                                // 云端无时间戳 → 使用云端
+                                mergedVehicles.push(cv);
+                            } else if (localTime > cloudTime) {
                                 // 本地更新 → 保留本地版本
                                 localMatch._synced = true;
                                 mergedVehicles.push(localMatch);
@@ -8670,9 +8684,10 @@
             // 记录原始状态
             const originalStatus = vehicle.status;
             
-            // 更新车辆状态
+            // 更新车辆状态（标记时间戳防止云端旧数据覆盖）
             vehicle.status = '已售出';
             vehicle.soldDate = new Date();
+            vehicle._syncTime = new Date(); // 🔑 标记本地修改时间，防止 loadDataFromCloud 回退
             
             // 创建销售交易记录
             const transactionId = 't' + Date.now();
